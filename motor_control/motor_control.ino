@@ -15,6 +15,7 @@ ESC fl_esc (FL, 1000, 2000, 500); // ESC_Name (PIN, Minimum Value, Maximum Value
 
 bool initialize_motors();
 void set_motor(int fl_spd, int fr_spd, int rl_spd, int rr_spd);
+void angle_stabilization(double curr_x, double curr_y, double curr_z, double desired_x, double desired_y, double desired_z, int desired_speed);
 
 void setup() {
   Serial.begin(9600);
@@ -41,6 +42,20 @@ void loop() {
     delay(10); // Wait for a while
   }
   
+}
+
+// x is roll (positive is right), y is yaw (positive is right), z is pitch (positive is down)
+void angle_stabilization(double curr_x, double curr_y, double curr_z, double desired_x, double desired_y, double desired_z, int desired_speed){
+  /*
+    Logic here is as follows. I have 3 pid controllers one for each angle. 
+    The yaw gets to influence the ratio between the diagonals. 
+    The roll gets to influence the ratio between left and right.
+    The pitch gets to influence the ratio between front and back.
+    FL = desired_speed - pitch_pid + roll_pid - Yaw_pid
+    FR = desired_speed - pitch_pid - roll_pid + Yaw_pid
+    RL = desired_speed + pitch_pid - roll_pid - Yaw_pid
+    RR = desired_speed + pitch_pid + roll_pid + Yaw_pid
+  */
 }
 
 bool initialize_motors(){
