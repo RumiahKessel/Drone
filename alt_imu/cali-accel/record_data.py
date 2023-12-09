@@ -19,12 +19,11 @@ import serial
 
 
 # global variables
-MAX_MEAS = 200  # max number of readings in the session, so that we don't create an infinite loop
+MAX_MEAS = 1000  # max number of readings in the session, so that we don't create an infinite loop
 AVG_MEAS = 25  # for each reading, take this many measurements and average them
-SER_PORT = '/dev/cu.usbserial-14210'  # serial port the device is connected to
+SER_PORT = '/dev/cu.usbserial-14110'  # serial port the device is connected to
 SER_BAUD = 115200  # serial port baud rate
-ACC_FILENAME = os.path.join(os.getcwd(), 'acc_data_1.txt')  # output file
-MAG_FILENAME = os.path.join(os.getcwd(), 'mag_data_1.txt')  # output file
+ACC_FILENAME = os.path.join(os.getcwd(), 'readings/acc_data_1.txt')  # output file
 # # Function to find the serial port
 # def find_serial_port():
 #     ports = serial.tools.list_ports.comports()
@@ -94,7 +93,6 @@ def RecordDataPt(ser: SerialPort) -> tuple:
     """Record data from serial port and return averaged result."""
     # do a few readings and average the result
     ax = ay = az = 0.0
-    mx = my = mz = 0.0
 
     # read data
     measurements_count = 0
@@ -103,7 +101,7 @@ def RecordDataPt(ser: SerialPort) -> tuple:
         flag = False
         while True:
             data = ser.Read().split(',')
-            if (len(data) == 8 and data[0] == 'Start' and data[7] == 'End'):
+            if (len(data) == 5 and data[0] == 'Start' and data[4] == 'End'):
                 acc_data = data[1:4]
                 ax_now = float(acc_data[0])
                 ay_now = float(acc_data[1])
@@ -112,15 +110,6 @@ def RecordDataPt(ser: SerialPort) -> tuple:
                 ax += ax_now
                 ay += ay_now
                 az += az_now
-
-                mag_data = data[4:7]
-                mx_now = float(mag_data[0])
-                my_now = float(mag_data[1])
-                mz_now = float(mag_data[2])
-
-                mx += mx_now
-                my += my_now
-                mz += mz_now
 
                 measurements_count += 1
 
@@ -132,7 +121,7 @@ def RecordDataPt(ser: SerialPort) -> tuple:
         ser.Close()
         raise SystemExit("[ERROR]: Error reading serial connection.")
 
-    return (ax / AVG_MEAS, ay / AVG_MEAS, az / AVG_MEAS, mx/AVG_MEAS, my/AVG_MEAS, mz/AVG_MEAS)
+    return (ax / AVG_MEAS, ay / AVG_MEAS, az / AVG_MEAS)
 
 
 def List2DelimFile(mylist: list, filename: str, delimiter: str = ',', f_mode='a') -> None:
@@ -150,38 +139,31 @@ def List2DelimFile(mylist: list, filename: str, delimiter: str = ',', f_mode='a'
 def main():
     ser = SerialPort(SER_PORT, baud=SER_BAUD)
     accel_data = []  # data list
-    mag_data =[]
 
     print('[INFO]: Place sensor level and stationary on desk.')
     input('[INPUT]: Press any key to continue...')
     # take measurements
     for _ in range(MAX_MEAS):
         user = input(
-            '[INPUT]: Ready for measurement? Type anything to measure or \'q\' to save and quit: ').lower()
+            '[INPUT]: Ready for measurement? Type Enter to take measurement or \'q\' to save and quit: ').lower()
         if user == 'q':
             # save, then quit
             print('[INFO]: Saving data and exiting...')
             List2DelimFile(accel_data, ACC_FILENAME, delimiter='\t')
-            List2DelimFile(mag_data, MAG_FILENAME, delimiter='\t')
             ser.Close()
             print('[INFO]: Done!')
             return
         else:
             # record data to list
-            ax, ay, az, mx, my, mz = RecordDataPt(ser)
+            ax, ay, az = RecordDataPt(ser)
             accel = math.sqrt(ax**2 + ay**2 + az**2)
-            magn = math.sqrt(mx**2 + my**2 + mz**2)
             print('[INFO]: ACCEL Avgd Readings: {:.4f}, {:.4f}, {:.4f} Magnitude: {:.4f}'.format(
                 ax, ay, az, accel))
-            print('[INFO]: MAG Avgd Readings: {:.4f}, {:.4f}, {:.4f} Magnitude: {:.4f}'.format(
-                mx, my, mz, magn))
             accel_data.append([ax, ay, az])
-            mag_data.append([mx, my, mz])
 
     # save once max is reached
     print('[WARNING]: Reached max. number of datapoints, saving file...')
     List2DelimFile(accel_data, ACC_FILENAME, delimiter='\t')
-    List2DelimFile(mag_data, MAG_FILENAME, delimiter='\t')
     ser.Close()
     print('[INFO]: Done!')
 
