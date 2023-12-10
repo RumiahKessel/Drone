@@ -1,0 +1,17 @@
+{
+	"folders": [
+		{
+			"name": "alt_imu",
+			"path": "."
+		},
+		{
+			"name": "Drone",
+			"path": ".."
+		}
+	],
+	"settings": {
+		"git.openRepositoryInParentFolders": "always",
+		"workbench.editor.enablePreviewFromQuickOpen": true,
+		"git.openAfterClone": "always"
+	}
+}
