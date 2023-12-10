@@ -5,7 +5,7 @@
 #include <esp_timer.h>
 #include <math.h>
 
-
+#define G 9.81
 /* ================================================================*/
 
 /*
@@ -48,6 +48,8 @@ float SENS_A;
 
 
 //Magnetometer
+float SENS_M;
+
 /*=====================================================================*/
 
 /*=====================================================================*/
@@ -65,6 +67,9 @@ mdps/LSB (least significant bit) at this FS setting, so the raw
 reading of 345 corresponds to 345 * 8.75 = 3020 mdps = 3.02 dps.
 */
 
+#define DEG_TO_RAD (M_PI/180.0)
+#define RAD_TO_DEG (180.0/M_PI)
+#define CONVERSION_G 8.75 // correlational to sensitivity -> refer to datasheet
 L3G gyro;
 
 vector* prev_g;
@@ -101,6 +106,7 @@ float x[7]; //state estimate vector
 float p, q, r;
 
 float P[4];
+float Q[2];
 
 char report[200];
 
@@ -126,8 +132,9 @@ void setup() {
     Serial.println("failed to detect gyro");
     while(1);
   }
+
   gyro.enableDefault();
-  // gyro.writeReg(L3G::)
+  // gyro.writeReg(L3G::CTRL4, 0x20); //change the sensitivity of gyro to 2000dps
 
   //initialize gyro variables
   prev_g->x = 0.0f; prev_g->y = 0.0f; prev_g->z = 0.0f;
@@ -149,19 +156,111 @@ void initializeEKF(float Pinit, float* Q, float* R) {
   //Initialize roll and pitch with sitting measurements
   vector* a;
   read_accel(a);
-  roll_rad = atan2(a->y, a->z);
-  pitch_rad = atan2(a->x, sqrt(pow(a->x, 2), pow(a->y, 2), pow(a->z, 2)));
-
+  roll = atan2(a->y, a->z);
+  pitch = atan2(a->x, sqrt(pow(a->x, 2), pow(a->y, 2), pow(a->z, 2)));
 
   //initialize covariance matrix: P
   P[0] = Pinit; P[1] = 0.0f;
   P[2] = 0.0f;  P[3] = Pinit;
   
-
-  //initialize noise matrix: Q
-
-  //Calculate initial pitch and roll measurements
   
+  //initialize noise matrix: Q
+  Q[0] = 0; Q[1] = 0;
+
+  //initialize measurement noise matrix: r
+  R[0] = 0; R[1] = 1; R[2] = 0;
+  
+}
+
+void predictEKF() {
+  vector* g;
+  read_gyro(g);
+
+  p = g->x;
+  q = g->y;
+  r = g->z;
+
+  vector* a;
+  read_accel(a);
+  float ax = a->x;
+  float ay = a->y;
+  float az = a->z;
+
+
+  /* Compute common trig terms*/
+  float sin_phi = sin(roll); float cos_phi = cos(roll);
+
+  /* tan(theta) is undefined for theta=90deg */
+  if (fabs(pitch) > 1.57952297305f || fabs(pitch) < 1.56206968053f) {
+		return;
+	}
+
+  /* Integegrate to get new state estimates (Euler Method)
+      x+= x + T*f(x,u)*/
+  roll = roll + T* (p + tan(pitch) * (q * sin_phi + r * cos_phi));
+  pitch = pitch + T * (q * cos_phi - r * sin_phi);
+  
+
+  if (fabs(pitch) > 1.57952297305f || fabs(pitch) < 1.56206968053f) {
+		return;
+	}
+
+  /* Compute common trig terms*/
+  sin_phi = sin(roll); cos_phi = cos(roll);
+  float sin_theta = sin(pitch); 
+  float cos_theta = cos(pitch); 
+  float tan_theta = sin_theta / cos_theta;
+
+  /* Jacobian of f(x,u)*/
+  A[4] = {tan_theta * (q * cos_phi - r * sin_phi), (r * cos_phi + q * sin_phi) * (tan_theta * tan_theta + 1.0f),
+                     -(r * cos_phi + q * sin_phi),  0.0f};
+
+  /*Update covariance matrix P[n + 1] = P[n] + T * (A * P[n] + P[n]*A^T + Q) */
+  float Ptmp[4] = { T*(Q[0]      + 2.0f*A[0]*P[0] + A[1]*P[1] + A[1]*P[2]), T*(A[0]*P[1] + A[2]*P[0] + A[1]*P[3] + A[3]*P[1]),
+					  T*(A[0]*P[2] + A[2]*P[0]   + A[1]*P[3] + A[3]*P[2]),    T*(Q[1]      + A[2]*P[1] + A[2]*P[2] + 2.0f*A[3]*P[3]) };
+
+  
+  P[0] = P[0] + Ptmp[0]; P[1] = P[1] + Ptmp[1];
+	P[2] = P[2] + Ptmp[2]; P[3] = P[3] + Ptmp[3];
+} 
+
+void updateEKF() {
+  /* Output function h(x,u)*/
+  float h[3] = { q * Va * sin_theta              + g * sin_theta, 
+				   r * Va * cos_theta - p * Va * sin_theta - g * cos_theta * sin_phi,
+				  -q * Va * cos_theta               - g * cos_theta * cos_phi };
+
+/* Jacobian of h(x,u)*/
+float C[6] = { 0.0f,         q * Va * cos_theta + g * cos_theta,
+				  -g * cos_phi * cos_theta, -r * Va * sin_theta - p * Va * cos_theta + g * sin_phi * sin_theta,
+				   g * sin_phi * cos_theta, (q * Va + g * cos_phi) * sin_theta };
+
+
+/* Kalman gain K = P * C' / (C * P * C' + R) */
+float G[9] = { P[3]*C[1]*C[1] + R[0],        C[1]*C[2]*P[2] + C[1]*C[3]*P[3],                                                   C[1]*C[4]*P[2] + C[1]*C[5]*P[3],
+          C[1]*(C[2]*P[1] + C[3]*P[3]), R[1] + C[2]*(C[2]*P[0] + C[3]*P[2]) + C[3]*(C[2]*P[1] + C[3]*P[3]), C[4]*(C[2]*P[0] + C[3]*P[2]) + C[5]*(C[2]*P[1] + C[3]*P[3]),
+                C[1]*(C[4]*P[1] + C[5]*P[3]), C[2]*(C[4]*P[0] + C[5]*P[2]) + C[3]*(C[4]*P[1] + C[5]*P[3]),             R[2] + C[4]*(C[4]*P[0] + C[5]*P[2]) + C[5]*(C[4]*P[1] + C[5]*P[3]) };
+
+float Gdetinv = 1.0f / (G[0]*G[4]*G[8] - G[0]*G[5]*G[7] - G[1]*G[3]*G[8] + G[1]*G[5]*G[6] + G[2]*G[3]*G[7] - G[2]*G[4]*G[6]);
+
+float Ginv[9] = { Gdetinv * (G[4]*G[8] - G[5]*G[7]), -Gdetinv * (G[1]*G[8] - G[2]*G[7]),  Gdetinv * (G[1]*G[5] - G[2]*G[4]), 
+            -Gdetinv * (G[3]*G[8] - G[5]*G[6]),  Gdetinv * (G[0]*G[8] - G[2]*G[6]), -Gdetinv * (G[0]*G[5] - G[2]*G[3]),
+                  Gdetinv * (G[3]*G[7] - G[4]*G[6]), -Gdetinv * (G[0]*G[7] - G[1]*G[6]),  Gdetinv * (G[0]*G[4] - G[1]*G[3]) };
+
+float K[6] = { Ginv[3]*(C[2]*P[0] + C[3]*P[1]) + Ginv[6]*(C[4]*P[0] + C[5]*P[1]) + C[1]*Ginv[0]*P[1], Ginv[4]*(C[2]*P[0] + C[3]*P[1]) + Ginv[7]*(C[4]*P[0] + C[5]*P[1]) + C[1]*Ginv[1]*P[1], Ginv[5]*(C[2]*P[0] + C[3]*P[1]) + Ginv[8]*(C[4]*P[0] + C[5]*P[1]) + C[1]*Ginv[2]*P[1],
+          Ginv[3]*(C[2]*P[2] + C[3]*P[3]) + Ginv[6]*(C[4]*P[2] + C[5]*P[3]) + C[1]*Ginv[0]*P[3], Ginv[4]*(C[2]*P[2] + C[3]*P[3]) + Ginv[7]*(C[4]*P[2] + C[5]*P[3]) + C[1]*Ginv[1]*P[3], Ginv[5]*(C[2]*P[2] + C[3]*P[3]) + Ginv[8]*(C[4]*P[2] + C[5]*P[3]) + C[1]*Ginv[2]*P[3] };
+
+/* Update covariance matrix P++ = (I - K * C) * P+ */
+Ptmp[0] = -P[2]*(C[1]*K[0] + C[3]*K[1] + C[5]*K[2]) - P[0]*(C[2]*K[1] + C[4]*K[2] - 1.0f); Ptmp[1] = -P[3]*(C[1]*K[0] + C[3]*K[1] + C[5]*K[2]) - P[1]*(C[2]*K[1] + C[4]*K[2] - 1.0f);
+Ptmp[2] = -P[2]*(C[1]*K[3] + C[3]*K[4] + C[5]*K[5] - 1.0f) - P[0]*(C[2]*K[4] + C[4]*K[5]); Ptmp[3] = -P[3]*(C[1]*K[3] + C[3]*K[4] + C[5]*K[5] - 1.0f) - P[1]*(C[2]*K[4] + C[4]*K[5]);
+
+P[0] = P[0] + Ptmp[0]; P[1] = P[1] + Ptmp[1];
+P[2] = P[2] + Ptmp[2]; P[3] = P[3] + Ptmp[3];
+
+/* Update state estimate x++ = x+ + K * (y - h) */
+roll  = roll   + K[0] * (ax - h[0]) + K[1] * (ay - h[1]) + K[2] * (az - h[2]);
+pitch = pitch + K[3] * (ax - h[0]) + K[4] * (ay - h[1]) + K[5] * (az - h[2]);  
+
 }
 void calibrate() {
   const int numReadings = 100;
@@ -196,7 +295,6 @@ void calibrate_mag(vector* m) {
   //low pass filter mag
   low_pass_filter(m, prev_m, lpf_m);
 
-
 }
 
 /* Calibrate values, remap axis, put through low pass filter and convert */
@@ -222,9 +320,28 @@ void read_accel(vector* a) {
   a->z = convert_accel(a->z);
 }
 
-
+/* Outputs gyro rad/sec */
 void read_gyro(vector* g) {
-  g->x = 
+  gyro.read();
+  
+  //calibrate step is missing
+
+  // axis remapping
+  g->x = -1 * gyro.g.y;
+  g->y = -1 * gyro.g.x;
+  g->z = -1 * gyro.g.z;
+
+  low_pass_filter(g, prev_g, lpf_g);
+
+  g->x = convert_gyro(g->x);
+  g->y = convert_gyro(g->y);
+  g->z = convert_gyro(g->z);
+}
+
+// raw value -> rad/sec
+float convert_gyro(float num) {
+  float dps = num * CONVERSION_G / 1000;
+  return dps * DEG_TO_RAD; //returns rad/s
 }
 
 
