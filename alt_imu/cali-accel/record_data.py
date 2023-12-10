@@ -23,7 +23,7 @@ MAX_MEAS = 1000  # max number of readings in the session, so that we don't creat
 AVG_MEAS = 25  # for each reading, take this many measurements and average them
 SER_PORT = '/dev/cu.usbserial-14110'  # serial port the device is connected to
 SER_BAUD = 115200  # serial port baud rate
-ACC_FILENAME = os.path.join(os.getcwd(), 'readings/acc_data_1.txt')  # output file
+ACC_FILENAME = os.path.join(os.getcwd(), 'readings/acc_data_6.txt')  # output file
 # # Function to find the serial port
 # def find_serial_port():
 #     ports = serial.tools.list_ports.comports()

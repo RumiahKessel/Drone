@@ -48,7 +48,7 @@ b = np.array([ -711.882087, 1550.557, -10.076059])
 
 
 # Read raw data and apply calibration
-rawData = np.genfromtxt('magcal-readings.txt', delimiter='\t')  # Read raw measurements
+rawData = np.genfromtxt('readings/magcal-readings.txt', delimiter='\t')  # Read raw measurements
 
 N = len(rawData)
 calibData = np.zeros((N, 3), dtype='float')
