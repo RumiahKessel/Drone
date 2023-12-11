@@ -1,3 +1,4 @@
+
 #include "Wire.h"
 #include <LSM303.h>
 #include <L3G.h>
@@ -5,11 +6,13 @@
 #include <esp_timer.h>
 #include <math.h>
 
-#define GRAVITY 9.81
+extern "C" {
+#include <KalmanRollPitchYaw.h>
+  // #include <KalmanRollPitch.h>
+}
 
 
-typedef struct vector
-{
+typedef struct vector {
   float x, y, z;
 } vector;
 
@@ -44,19 +47,50 @@ at this FS setting, so the value of -1009 corresponds to -1009 * 1 =
 */
 #define LSM303D_SDA_PIN 21
 #define LSM303D_SCL_PIN 22
-#define SENS_A_REF      4096
-#define TEMP_REF        25
+#define SENS_A_REF 4096
+#define TEMP_REF 25
+#define EKF_N_ACC 0.000067666
+#define EKF_N_PSI 0.00005
+#define SAMPLE_HZ_ACCEL 1600
+#define SAMPLE_TIME_ACCEL_MS 1 / SAMPLE_HZ_ACCEL * 1000  //in ms
+#define SAMPLE_HZ_MAG 100
+#define SAMPLE_TIME_MAG_MS 1 / SAMPLE_HZ_MAG * 1000  //in ms
+#define NUM_READINGS_ACCEL 10
+#define NUM_REPORT_ACCEL 20
+#define NUM_READINGS_MAG 10
+#define NUM_REPORT_MAG 20  //how many reports we keep track of mag to avg
 
 LSM303 compass;
-vector* prev_a;
-vector* prev_m;
+vector prev_a;
+
+float B_accel[3] = { -154.590426, -219.816113, -141.307594 };
+float Ainv_accel[3][3] = { { 0.608190, -0.001143, 0.009962 },
+                           { -0.001143, 0.628152, -0.000687 },
+                           { 0.009962, -0.000687, 0.606519 } };
+
+
+vector prev_m;
+
+//Our calibration of magnetometer
+float B_mag[3] = { 9955.15, -7948.26, 8511.80 };
+float Ainv_mag[3][3] = { { 0.25060, 0.02942, -0.02955 },
+                         { 0.02942, 0.31692, 0.00789 },
+                         { -0.02955, 0.00789, 0.30592 } };
+
 
 //Accelerometer
 float SENS_A;
+float accel_report[3][20];
+float accel_sum[3];
+uint8_t index_accel;
 
 
 //Magnetometer
 float SENS_M;
+float psiMag;
+float mag_report[3][NUM_REPORT_MAG];  //keep track of 20
+float mag_sum[3];
+uint8_t index_mag;
 
 /*=====================================================================*/
 
@@ -75,14 +109,20 @@ mdps/LSB (least significant bit) at this FS setting, so the raw
 reading of 345 corresponds to 345 * 8.75 = 3020 mdps = 3.02 dps.
 */
 
-#define DEG_TO_RAD (M_PI/180.0)
-#define RAD_TO_DEG (180.0/M_PI)
-#define CONVERSION_G 8.75 // correlational to sensitivity -> refer to datasheet
-#define SAMPLE_TIME_GYRO 1/12.5 //1 divide by hz
+#define DEG_TO_RAD (M_PI / 180.0)
+#define RAD_TO_DEG (180.0 / M_PI)
+#define EKF_N_GYR 0.00000191056
+#define CONVERSION_G 8.75  // correlational to sensitivity -> refer to datasheet
+#define SAMPLE_HZ_GYRO 757.6
+#define SAMPLE_TIME_GYRO_MS 1 / SAMPLE_HZ_GYRO * 1000  //1 divide by hz
+#define NUM_READINGS_GYRO 10
 
 L3G gyro;
 
-vector* prev_g;
+float gyro_avg[3];
+float gyro_avg_count;
+
+vector prev_g;
 
 /*=====================================================================*/
 
@@ -92,237 +132,218 @@ LPS barometer;
 float base_alt;
 
 
+#define CF_ALPHA 0.01  //need to test this value
 
-//Our calibration of magnetometer
-float B_mag[3] = { 9955.15, -7948.26, 8511.80};
-float Ainv_mag[3][3] = {{  0.25060,  0.02942, -0.02955},
-  {  0.02942,  0.31692,  0.00789},
-  { -0.02955,  0.00789,  0.30592}
-};
-
-
-float B_accel[3] = {-154.590426, -219.816113, -141.307594};
-float Ainv_accel[3][3] = {{0.608190, -0.001143, 0.009962},
-  {  -0.001143, 0.628152, -0.000687},
-  {   0.009962, -0.000687, 0.606519}                     
-};
+uint32_t curr;
 
 //Low-pass filter coefficients that need to be tested
-float lpf_g = 0.7f; 
-float lpf_a = 0.9;
-float lpf_m = 0.4;
-float lpf_va = 0.7;
+float LPF_GYR_CUTOFF_HZ = 0.7;
+float LPF_ACC_CUTOFF_HZ = 0.9;
+float LPF_MAG_CUTOFF_HZ = 0.4;
+float LPF_BAR_CUTOFF_HZ = 0.7;
 
-float x[7]; //state estimate vector
+float x[7];  //state estimate vector
 
 float p, q, r;
 
-float roll, pitch;
+float roll, pitch, psi;
 
 float P[4];
 float Q[2];
-float R[3]; //noise matrix
+float R[3];  //noise matrix
 
-char report[200];
+KalmanRollPitchYaw kalmanData;
+
+// KalmanRollPitch* kalmanData;
+
+float prev;
 
 void setup() {
   Serial.begin(115200);
   Wire.begin(LSM303D_SDA_PIN, LSM303D_SCL_PIN);
+
   if (!compass.init()) {
     Serial.println("failed to detect compass");
-    while(1);
+    while (1)
+      ;
   }
   compass.enableDefault();
-  // compass.writeReg(LSM303::CTRL2, 0x18); //change to +-8g check if we need higher
-  compass.writeReg(LSM303::CTRL2, 0x20); //+/16g
+  // /* change sensitivity and sample frequency of accel */
+  // // compass.writeReg(LSM303::CTRL2, 0x18); //change to +-8g check if we need higher
+  compass.writeReg(LSM303::CTRL2, 0x20);  //+/16g
+  compass.writeReg(LSM303::CTRL1, 0xA7);  //change to hz=1600
 
   //initialize accel variables
-  prev_a->x = 0.0f; prev_a->y = 0.0f; prev_a->z = 0.0f;
+  prev_a.x = 0.0f;
+  prev_a.y = 0.0f;
+  prev_a.z = 0.0f;
+  index_accel = 0;
 
-  // compass.writeReg(LSM303::CTRL6, 0x40); 
-  compass.writeReg(LSM303::CTRL6, 0x60); 
+  /* change sensitivity and sample frequency of mag */
+  compass.writeReg(LSM303::CTRL6, 0x60);  //+/- 12 gauss
+  compass.writeReg(LSM303::CTRL5, 0x14);  //change to hz=100
+
+  //initialize mag variables
+  prev_m.x = 0.0f;
+  prev_m.y = 0.0f;
+  prev_m.z = 0.0f;
+  index_mag = 0;
 
 
   if (!gyro.init()) {
     Serial.println("failed to detect gyro");
-    while(1);
+    while (1)
+      ;
   }
-
   gyro.enableDefault();
-  // gyro.writeReg(L3G::CTRL4, 0x20); //change the sensitivity of gyro to 2000dps
-
-  //initialize gyro variables
-  prev_g->x = 0.0f; prev_g->y = 0.0f; prev_g->z = 0.0f;
+  gyro.writeReg(L3G::CTRL1, 0xCF);  //change to hz=800
+  gyro.writeReg(L3G::CTRL4, 0x20);  //change the sensitivity of gyro to 2000dps
+  prev_g.x = 0.0f;
+  prev_g.y = 0.0f;
+  prev_g.z = 0.0f;
+  for (int i = 0; i < 3; i++) {
+    gyro_avg[i] = 0;  //initialize
+  }
+  gyro_avg_count = 0;
 
   if (!barometer.init()) {
     Serial.println("failed to detect barometer");
-    while(1);
+    while (1)
+      ;
   }
   barometer.enableDefault();
 
+  for (int j = 0; j < NUM_REPORT_MAG; j++) {
+    mag_report[0][j] = 0;
+    mag_report[1][j] = 0;
+    mag_report[2][j] = 0;
+  }
+
+  for (int j = 0; j < NUM_REPORT_ACCEL; j++) {
+    accel_report[0][j] = 0;
+    accel_report[1][j] = 0;
+    accel_report[2][j] = 0;
+    Serial.print("Setup "); Serial.println(accel_report[0][j]);
+  }
+
+
+  // Serial.println("almost end of setup");
   calibrate();
 }
 
-void initializeEKF(float Pinit, float* Q, float* R) {
-  
-  p = 0.0f; q = 0.0f; r = 0.0f;
 
-
-  //Initialize roll and pitch with sitting measurements
-  vector* a;
-  read_accel(a);
-  roll = atan2(a->y, a->z);
-  pitch = atan2(a->x, sqrt(pow(a->x, 2) + pow(a->y, 2) + pow(a->z, 2)));
-
-  //initialize covariance matrix: P
-  P[0] = Pinit; P[1] = 0.0f;
-  P[2] = 0.0f;  P[3] = Pinit;
-  
-  
-  //initialize noise matrix: Q
-  Q[0] = 0; Q[1] = 0;
-
-  //initialize measurement noise matrix: R
-  R[0] = 0; R[1] = 1; R[2] = 0;
-  
-}
-
-void predict_update_EKF(float T, float Va) {
-  vector* g;
-  read_gyro(g);
-
-  p = g->x;
-  q = g->y;
-  r = g->z;
-
-  vector* a;
-  read_accel(a);
-  float ax = a->x;
-  float ay = a->y;
-  float az = a->z;
-
-
-  /* Compute common trig terms*/
-  float sin_phi = sin(roll); float cos_phi = cos(roll);
-
-  /* tan(theta) is undefined for theta=90deg */
-  if (fabs(pitch) > 1.57952297305f || fabs(pitch) < 1.56206968053f) {
-		return;
-	}
-
-  /* Integegrate to get new state estimates (Euler Method)
-      x+= x + T*f(x,u)*/
-  roll = roll + T * (p + tan(pitch) * (q * sin_phi + r * cos_phi));
-  pitch = pitch + T * (q * cos_phi - r * sin_phi);
-  
-
-  if (fabs(pitch) > 1.57952297305f || fabs(pitch) < 1.56206968053f) {
-		return;
-	}
-
-  /* Compute common trig terms*/
-  sin_phi = sin(roll); cos_phi = cos(roll);
-  float sin_theta = sin(pitch); 
-  float cos_theta = cos(pitch); 
-  float tan_theta = sin_theta / cos_theta;
-
-  /* Jacobian of f(x,u)*/
-  float A[4] = {tan_theta * (q * cos_phi - r * sin_phi), (r * cos_phi + q * sin_phi) * (tan_theta * tan_theta + 1.0f),
-                     -(r * cos_phi + q * sin_phi),  0.0f};
-
-  /*Update covariance matrix P[n + 1] = P[n] + T * (A * P[n] + P[n]*A^T + Q) */
-  float Ptmp[4] = { T*(Q[0]      + 2.0f*A[0]*P[0] + A[1]*P[1] + A[1]*P[2]), T*(A[0]*P[1] + A[2]*P[0] + A[1]*P[3] + A[3]*P[1]),
-					  T*(A[0]*P[2] + A[2]*P[0]   + A[1]*P[3] + A[3]*P[2]),    T*(Q[1]      + A[2]*P[1] + A[2]*P[2] + 2.0f*A[3]*P[3]) };
-
-  
-  P[0] = P[0] + Ptmp[0]; P[1] = P[1] + Ptmp[1];
-	P[2] = P[2] + Ptmp[2]; P[3] = P[3] + Ptmp[3];
-
-  /* Output function h(x,u)*/
-  float h[3] = { q * Va * sin_theta              + GRAVITY * sin_theta, 
-				   r * Va * cos_theta - p * Va * sin_theta - GRAVITY * cos_theta * sin_phi,
-				  -q * Va * cos_theta               - GRAVITY * cos_theta * cos_phi };
-
-  /* Jacobian of h(x,u)*/
-  float C[6] = { 0.0f,         q * Va * cos_theta + GRAVITY * cos_theta,
-            -GRAVITY * cos_phi * cos_theta, -r * Va * sin_theta - p * Va * cos_theta + GRAVITY * sin_phi * sin_theta,
-            GRAVITY * sin_phi * cos_theta, (q * Va + GRAVITY * cos_phi) * sin_theta };
-
-
-  /* Kalman gain K = P * C' / (C * P * C' + R) */
-  float G[9] = { P[3]*C[1]*C[1] + R[0],        C[1]*C[2]*P[2] + C[1]*C[3]*P[3],                                                   C[1]*C[4]*P[2] + C[1]*C[5]*P[3],
-            C[1]*(C[2]*P[1] + C[3]*P[3]), R[1] + C[2]*(C[2]*P[0] + C[3]*P[2]) + C[3]*(C[2]*P[1] + C[3]*P[3]), C[4]*(C[2]*P[0] + C[3]*P[2]) + C[5]*(C[2]*P[1] + C[3]*P[3]),
-                  C[1]*(C[4]*P[1] + C[5]*P[3]), C[2]*(C[4]*P[0] + C[5]*P[2]) + C[3]*(C[4]*P[1] + C[5]*P[3]),             R[2] + C[4]*(C[4]*P[0] + C[5]*P[2]) + C[5]*(C[4]*P[1] + C[5]*P[3]) };
-
-  float Gdetinv = 1.0f / (G[0]*G[4]*G[8] - G[0]*G[5]*G[7] - G[1]*G[3]*G[8] + G[1]*G[5]*G[6] + G[2]*G[3]*G[7] - G[2]*G[4]*G[6]);
-
-  float Ginv[9] = { Gdetinv * (G[4]*G[8] - G[5]*G[7]), -Gdetinv * (G[1]*G[8] - G[2]*G[7]),  Gdetinv * (G[1]*G[5] - G[2]*G[4]), 
-              -Gdetinv * (G[3]*G[8] - G[5]*G[6]),  Gdetinv * (G[0]*G[8] - G[2]*G[6]), -Gdetinv * (G[0]*G[5] - G[2]*G[3]),
-                    Gdetinv * (G[3]*G[7] - G[4]*G[6]), -Gdetinv * (G[0]*G[7] - G[1]*G[6]),  Gdetinv * (G[0]*G[4] - G[1]*G[3]) };
-
-  float K[6] = { Ginv[3]*(C[2]*P[0] + C[3]*P[1]) + Ginv[6]*(C[4]*P[0] + C[5]*P[1]) + C[1]*Ginv[0]*P[1], Ginv[4]*(C[2]*P[0] + C[3]*P[1]) + Ginv[7]*(C[4]*P[0] + C[5]*P[1]) + C[1]*Ginv[1]*P[1], Ginv[5]*(C[2]*P[0] + C[3]*P[1]) + Ginv[8]*(C[4]*P[0] + C[5]*P[1]) + C[1]*Ginv[2]*P[1],
-            Ginv[3]*(C[2]*P[2] + C[3]*P[3]) + Ginv[6]*(C[4]*P[2] + C[5]*P[3]) + C[1]*Ginv[0]*P[3], Ginv[4]*(C[2]*P[2] + C[3]*P[3]) + Ginv[7]*(C[4]*P[2] + C[5]*P[3]) + C[1]*Ginv[1]*P[3], Ginv[5]*(C[2]*P[2] + C[3]*P[3]) + Ginv[8]*(C[4]*P[2] + C[5]*P[3]) + C[1]*Ginv[2]*P[3] };
-
-  /* Update covariance matrix P++ = (I - K * C) * P+ */
-  Ptmp[0] = -P[2]*(C[1]*K[0] + C[3]*K[1] + C[5]*K[2]) - P[0]*(C[2]*K[1] + C[4]*K[2] - 1.0f); Ptmp[1] = -P[3]*(C[1]*K[0] + C[3]*K[1] + C[5]*K[2]) - P[1]*(C[2]*K[1] + C[4]*K[2] - 1.0f);
-  Ptmp[2] = -P[2]*(C[1]*K[3] + C[3]*K[4] + C[5]*K[5] - 1.0f) - P[0]*(C[2]*K[4] + C[4]*K[5]); Ptmp[3] = -P[3]*(C[1]*K[3] + C[3]*K[4] + C[5]*K[5] - 1.0f) - P[1]*(C[2]*K[4] + C[4]*K[5]);
-
-  P[0] = P[0] + Ptmp[0]; P[1] = P[1] + Ptmp[1];
-  P[2] = P[2] + Ptmp[2]; P[3] = P[3] + Ptmp[3];
-
-  /* Update state estimate x++ = x+ + K * (y - h) */
-  roll  = roll   + K[0] * (ax - h[0]) + K[1] * (ay - h[1]) + K[2] * (az - h[2]);
-  pitch = pitch + K[3] * (ax - h[0]) + K[4] * (ay - h[1]) + K[5] * (az - h[2]);  
-
-}
 void calibrate() {
   const int numReadings = 100;
   float sumPressure = 0.0;
   Serial.println("Calibrating...");
-  delay(5000); 
+  delay(5000);
   for (int i = 0; i < numReadings; ++i) {
     sumPressure += barometer.readPressureMillibars();
-    delay(10); 
+    delay(10);
   }
   float base_pressure = sumPressure / numReadings;
   base_alt = barometer.pressureToAltitudeMeters(base_pressure);
   Serial.println("base alt: ");
   Serial.println(base_alt);
 
-  //initialize prev_m
-  init_m(prev_m);
-  
-  //initialize prev_a
-  init_a(prev_a);
+  //initialize ekf with yaw
+  float Q[] = { 3.0f * EKF_N_GYR, 2.0f * EKF_N_GYR, 1.0f * EKF_N_GYR };
+  float Racc = EKF_N_ACC;
+  float Rpsi = EKF_N_PSI;
+  KalmanRollPitchYaw_Init(&kalmanData, 10.0f, Q, Racc, Rpsi);
 
-  init_m(prev_m);
+  /* Initialize EKF with no yaw */
+  // float Q[] = {3.0f * EKF_N_GYR, 2.0f * EKF_N_GYR};
+  // float R[] = {EKF_N_ACC, EKF_N_ACC, EKF_N_ACC};
+  // KalmanRollPitch_Init(&kalmanData, 10.0f, Q, R);
 
+  // for (int j = 0; j < NUM_REPORT_MAG; j++) {
+  //   compass.read();
+  //   mag_report[0][index_mag] += compass.m.x;
+  //   mag_report[1][index_mag] += compass.m.y;
+  //   mag_report[2][index_mag] += compass.m.y;
+  //   index_mag += (index_mag + 1) % NUM_REPORT_MAG;
+  // }
+
+  // Serial.print
+  // for (int j = 0; j < NUM_REPORT_ACCEL; j++) {
+  //   compass.read();
+  //   accel_report[0][index_accel] += compass.a.x;
+  //   accel_report[1][index_accel] += compass.a.y;
+  //   accel_report[2][index_accel] += compass.a.y;
+  //   Serial.print("y "); Serial.println(compass.a.y);
+  //   Serial.print("accel_report x"); Serial.println(accel_report[0][index_accel]);
+  //   Serial.print("accel_report y"); Serial.println(accel_report[1][index_accel]);
+  //   Serial.print("accel_report z"); Serial.println(accel_report[2][index_accel]);
+  //   index_accel += (index_accel + 1) % NUM_REPORT_ACCEL;
+  // }
+
+
+  vector m;
+  init_mag(&m);
+  psiMag = -atan2(m.y, m.x);
+
+  vector a;
+  init_accel(&a);
+  roll = atan2(a.y, a.z);
+  pitch = atan2(a.x, sqrt(pow(a.x, 2) + pow(a.y, 2) + pow(a.z, 2)));
+  psi = atan2(-m.y * cos(roll) + m.z * sin(roll),
+              m.x * cos(pitch) + m.y * sin(roll) * sin(pitch) + m.z * cos(roll) * sin(pitch));
+  Serial.print("cali: psi"); Serial.println(psi);
+
+
+  Serial.print("check kalmanData init"); Serial.println(kalmanData.phi); 
+  Serial.print("next"); Serial.println(kalmanData.theta);
+  prev = millis();
 }
 
-void read_mag(vector* m) { 
+void read_mag(vector* m) {
   cali_mag(m);
   //maybe Axis remapping need to double check
   axis_remap(m);
 
   //low pass filter mag
-  low_pass_filter(m, prev_m, lpf_m);
-
+  low_pass_filter(m, &prev_m, LPF_MAG_CUTOFF_HZ);
 }
 
-void init_m(vector* m) {
+void init_mag(vector* m) {
   cali_mag(m);
 
+  float m_norm = 1.0f / sqrt(pow(m->x, 2) + pow(m->y, 2) + pow(m->z, 2));
+  m->x *= m_norm;
+  m->y *= m_norm;
+  m->z *= m_norm;
   //maybe Axis remapping need to double check
   axis_remap(m);
 }
 
+void avg_mag(vector* m) {
+  for (int j = 0; j < NUM_READINGS_MAG; j++) {
+    mag_sum[0] -= mag_report[0][index_mag];
+    mag_sum[1] -= mag_report[1][index_mag];
+    mag_sum[2] -= mag_report[2][index_mag];
+    compass.read();
+    mag_report[0][index_mag] += compass.m.x;
+    mag_report[1][index_mag] += compass.m.y;
+    mag_report[2][index_mag] += compass.m.y;
+
+    mag_sum[0] += mag_report[0][index_mag];
+    mag_sum[1] += mag_report[1][index_mag];
+    mag_sum[2] += mag_report[2][index_mag];
+    index_mag += (index_mag + 1) % NUM_REPORT_MAG;
+  }
+
+  m->x = mag_sum[0] / NUM_REPORT_MAG;
+  m->y = mag_sum[1] / NUM_REPORT_MAG;
+  m->z = mag_sum[2] / NUM_REPORT_MAG;
+}
 
 void cali_mag(vector* m) {
+  // avg_mag(m);
   static float x, y, z;
-  compass.read();
-  x = (float) compass.m.x - B_mag[0];
-  y = (float) compass.m.y - B_mag[1];
-  z = (float) compass.m.z - B_mag[2];
+  x = (float)m->x - B_mag[0];
+  y = (float)m->y - B_mag[1];
+  z = (float)m->z - B_mag[2];
   m->x = Ainv_mag[0][0] * x + Ainv_mag[0][1] * y + Ainv_mag[0][2] * z;
   m->y = Ainv_mag[1][0] * x + Ainv_mag[1][1] * y + Ainv_mag[1][2] * z;
   m->z = Ainv_mag[2][0] * x + Ainv_mag[2][1] * y + Ainv_mag[2][2] * z;
@@ -332,41 +353,81 @@ void cali_mag(vector* m) {
 void read_accel(vector* a) {
   cali_accel(a);
 
-  //Axis remapping 
-  a->x = -1*a->y;
-  a->y = -1*a->x;
-  a->z = -1*a->z;
+  //Axis remapping
+  a->x = -1 * a->y;
+  a->y = -1 * a->x;
+  a->z = -1 * a->z;
 
-  low_pass_filter(a, prev_a, lpf_a);
+  low_pass_filter(a, &prev_a, LPF_ACC_CUTOFF_HZ);
 
   //convert accel values from mg to m/s^2
   convert_accel(a);
 }
 
+void avg_accel(vector* a) {
+  for (int j = 0; j < NUM_READINGS_ACCEL; j++) {
+    accel_sum[0] -= accel_report[0][index_accel];
+    accel_sum[1] -= accel_report[1][index_accel];
+    accel_sum[2] -= accel_report[2][index_accel];
+    compass.read();
+    accel_report[0][index_accel] += compass.a.x;
+    accel_report[1][index_accel] += compass.a.y;
+    accel_report[2][index_accel] += compass.a.y;
+
+    accel_sum[0] += accel_report[0][index_accel];
+    accel_sum[1] += accel_report[1][index_accel];
+    accel_sum[2] += accel_report[2][index_accel];
+    index_accel += (index_accel + 1) % NUM_REPORT_ACCEL;
+    Serial.print("avg accel y "); Serial.println(compass.a.y);
+  }
+
+  a->x = accel_sum[0] / NUM_REPORT_ACCEL;
+  Serial.print("accel_sum "); Serial.println(accel_sum[0]);
+  a->y = accel_sum[1] / NUM_REPORT_ACCEL;
+  a->z = accel_sum[2] / NUM_REPORT_ACCEL;
+
+
+  Serial.print("compass read avg_accel"); Serial.println(a->y);
+}
+
 void cali_accel(vector* a) {
-  compass.read();
-  static float x, y, z;
-  x = (float) compass.a.x - B_accel[0];
-  y = (float) compass.a.y - B_accel[1];
-  z = (float) compass.a.z - B_accel[2];
+  // avg_accel(a);
+  // Serial.print("cali_accel "); Serial.println(a->x);
+  float x, y, z;
+  x = compass.a.x - B_accel[0];
+  // Serial.print("B_accel[0] "); Serial.println(B_accel[0]);
+  // Serial.print("B_accel[1] "); Serial.println(B_accel[1]);
+  // Serial.print("B_accel[2] "); Serial.println(B_accel[2]);
+  y = compass.a.y - B_accel[1];
+  z = compass.a.z - B_accel[2];
+
+  // Serial.print("x "); Serial.println(x);
+  // Serial.print("y "); Serial.println(y);
+  // Serial.print("z "); Serial.println(z);
   a->x = Ainv_accel[0][0] * x + Ainv_accel[0][1] * y + Ainv_accel[0][2] * z;
+  float test = Ainv_accel[0][0] * x + Ainv_accel[0][1] * y + Ainv_accel[0][2] * z;
+  Serial.print("test "); Serial.println(test);
   a->y = Ainv_accel[1][0] * x + Ainv_accel[1][1] * y + Ainv_accel[1][2] * z;
   a->z = Ainv_accel[2][0] * x + Ainv_accel[2][1] * y + Ainv_accel[2][2] * z;
 
+  // Serial.print("Ainv_accel[0][0] "); Serial.println(Ainv_accel[0][0]);
+  // Serial.print("Ainv_accel[0][1] "); Serial.println(Ainv_accel[0][1]);
+  // Serial.print("Ainv_accel[0][2] "); Serial.println(Ainv_accel[0][2]);
+  // Serial.print("cali_end a->x "); Serial.println(a->x);
 }
-void init_a(vector* a) {
-  
+void init_accel(vector* a) {
+
   cali_accel(a);
-  //Axis remapping 
+  // Serial.print("init_accel "); Serial.println(a->x);
+  //Axis remapping
   axis_remap(a);
   convert_accel(a);
-
 }
 
 /* Outputs gyro rad/sec */
 void read_gyro(vector* g) {
   gyro.read();
-  
+
   //calibrate step is missing
   g->x = gyro.g.x;
   g->y = gyro.g.y;
@@ -375,12 +436,12 @@ void read_gyro(vector* g) {
   // axis remapping
   axis_remap(g);
 
-  low_pass_filter(g, prev_g, lpf_g);
+  low_pass_filter(g, &prev_g, LPF_GYR_CUTOFF_HZ);
 
   convert_gyro(g);
 }
 
-void axis_remap(vector *v) {
+void axis_remap(vector* v) {
   v->x = -1 * v->y;
   v->y = -1 * v->x;
   v->z = -1 * v->z;
@@ -388,7 +449,7 @@ void axis_remap(vector *v) {
 
 void initial_g(vector* g) {
   gyro.read();
-  
+
   //calibrate step is missing
   g->x = gyro.g.x;
   g->y = gyro.g.y;
@@ -398,14 +459,12 @@ void initial_g(vector* g) {
   axis_remap(g);
 
   convert_gyro(g);
-  
-
 }
 
 // raw value -> rad/sec
 float raw_to_rad_sec(float num) {
   float dps = num * CONVERSION_G / 1000;
-  return dps * DEG_TO_RAD; //returns rad/s
+  return dps * DEG_TO_RAD;  //returns rad/s
 }
 
 void convert_gyro(vector* g) {
@@ -414,15 +473,14 @@ void convert_gyro(vector* g) {
   g->z = raw_to_rad_sec(g->z);
 }
 
-
-
 float mg_to_m_sec2(float num) {
-  float accel= num / SENS_A; //convert from mg to g
-  accel *= 9.81; //Convert to m/s^2
+  float accel = num / SENS_A;  //convert from mg to g
+  accel *= GRAVITY;               //Convert to m/s^2
   return accel;
 }
 
 void convert_accel(vector* a) {
+  Serial.print("convert_accel "); Serial.println(a->x);
   a->x = mg_to_m_sec2(a->x);
   a->y = mg_to_m_sec2(a->y);
   a->z = mg_to_m_sec2(a->z);
@@ -430,9 +488,9 @@ void convert_accel(vector* a) {
 
 void low_pass_filter(vector* v, vector* prev_v, float lpf_v) {
   //low pass filter accel (first-order low-pass filter)
-  v->x = lpf_v*prev_v->x + (1.0f - lpf_v) * v->x;
-  v->y = lpf_v*prev_v->y + (1.0f - lpf_v) * v->y;
-  v->z = lpf_v*prev_v->z + (1.0f - lpf_v) * v->z;
+  v->x = lpf_v * prev_v->x + (1.0f - lpf_v) * v->x;
+  v->y = lpf_v * prev_v->y + (1.0f - lpf_v) * v->y;
+  v->z = lpf_v * prev_v->z + (1.0f - lpf_v) * v->z;
 
   //update prev data
   prev_v->x = v->x;
@@ -446,31 +504,72 @@ void low_pass_filter(vector* v, vector* prev_v, float lpf_v) {
 //   return atan2(-m->y*cos())
 // }
 
-
-
-// void calc_sensitivity(float alpha, float temp) {
-//   SENS_A = SENS_A_REF * (1+ alpha/100 * temp - TEMP_A_REF);
-// }
-
 void loop() {
-
+  // Serial.println("hello");
   float pressure = barometer.readPressureMillibars();
   float altitude = barometer.pressureToAltitudeMeters(pressure);
   altitude -= base_alt;
   float temperature = barometer.readTemperatureF();
-  
-  Serial.println();
+
+
+  curr = millis();
+  if (curr - prev >= SAMPLE_TIME_GYRO_MS) {  //start gyro task
+    vector g_fitted;
+    read_gyro(&g_fitted);
+    float gyro_k[3];
+    gyro_k[0] = g_fitted.x;
+    gyro_k[1] = g_fitted.y;
+    gyro_k[2] = g_fitted.z;
+    Serial.print("gyro_k[0] "); Serial.println(gyro_k[0]);
+    Serial.print("gyro_k[1] "); Serial.println(gyro_k[1]);
+    Serial.print("gyro_k[2] "); Serial.println(gyro_k[2]);
+    KalmanRollPitchYaw_Predict(&kalmanData, gyro_k, SAMPLE_TIME_GYRO_MS*1000); //time in seconds
+    Serial.print("gyro phi "); Serial.println(kalmanData.phi);
+    Serial.print("gyro theta "); Serial.println(kalmanData.theta);
+    roll = kalmanData.phi;
+    pitch = kalmanData.theta;
+    psi = CF_ALPHA * psiMag + (1.0f - CF_ALPHA) * (psi + SAMPLE_TIME_GYRO_MS * 1000 *
+      (sin(kalmanData.phi) * g_fitted.y + cos(kalmanData.phi) * g_fitted.z) / cos(kalmanData.theta));
+    
+  }
+
+  if (curr-prev >= SAMPLE_TIME_ACCEL_MS) { //start accel task
+    vector a_fitted;
+    read_accel(&a_fitted);
+    float accel_k[3];
+    accel_k[0] = a_fitted.x; accel_k[1] = a_fitted.y; accel_k[2] = a_fitted.z;
+    KalmanRollPitchYaw_UpdateAcc(&kalmanData, accel_k, SAMPLE_TIME_ACCEL_MS*1000);
+    roll = kalmanData.phi;
+    pitch = kalmanData.theta;
+    Serial.print("accel phi "); Serial.println(kalmanData.phi);
+    Serial.print("accel theta "); Serial.println(kalmanData.theta);
+  }
 
 
 
-  // heading = 180*atan2(m.y, m.x) / PI;
-  // snprintf(report, sizeof(report), "Accel: %6d %6d %6d \nMag: %6d %6d %6d \nGyro: %6d %6d %6d \nBaro: %2f %2f %2f",
-  //   compass.a.x, compass.a.y, compass.a.z,
-  //   compass.m.x, compass.m.y, compass.m.z,
-  //   gyro.g.x, gyro.g.y, gyro.g.z,
-  //   pressure, altitude, temperature);
-  // Serial.println(report);
-  
+  if (curr-prev >= SAMPLE_TIME_MAG_MS) { //start mag task
+    vector m_reading;
+    read_mag(&m_reading);
+
+    psiMag = -atan2(m_reading.y, m_reading.x);
+    // float mag_k[3];
+    // mag_k[0] = m_reading->x; mag_k[1] = m_reading->y; mag_k[2] = m_reading->z;
+    KalmanRollPitchYaw_UpdatePsi(&kalmanData, psiMag);
+    roll = kalmanData.phi;
+    pitch = kalmanData.theta;
+    Serial.print("mag phi"); Serial.print(kalmanData->phi);
+    Serial.print("mag theta"); Serial.print(kalmanData->theta);
+  }
+
+  Serial.println("Roll" ); 
+  Serial.println(roll);
+  Serial.println("Pitch "); 
+  Serial.println(pitch);
+  Serial.println("Psi "); 
+  Serial.println(psi);
+
+  prev = curr;
+
   delay(1000);
-}
 
+}
