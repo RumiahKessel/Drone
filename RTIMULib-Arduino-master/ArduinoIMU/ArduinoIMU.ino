@@ -35,7 +35,7 @@ RTIMUSettings settings;                               // the settings object
 
 //  DISPLAY_INTERVAL sets the rate at which results are displayed
 
-#define DISPLAY_INTERVAL  100                         // interval between pose displays
+#define DISPLAY_INTERVAL  50                         // interval between pose displays
 
 //  SERIAL_PORT_SPEED defines the speed to use for the debug serial port
 
@@ -70,7 +70,7 @@ void setup()
     // 0 means that only gyros are used, 1 means that only accels/compass are used
     // In-between gives the fusion mix.
     
-    fusion.setSlerpPower(0.02);
+    fusion.setSlerpPower(0.04);
     
     // use of sensors in the fusion algorithm can be controlled here
     // change any of these to false to disable that sensor
