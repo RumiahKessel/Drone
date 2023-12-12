@@ -16,7 +16,8 @@ enum ConnectionStatus : String {
     case error
 }
 
-
+// F4833386-80AA-B418-47A1-1A9C6A72FD25
+//
 let service: CBUUID = CBUUID(string:"4fafc201-1fb5-459e-8fcc-c5c9c331914b")
 let pitchCharacteristic: CBUUID = CBUUID(string: "beb5483e-36e1-4688-b7f5-ea07361b26a8")
 let rollCharacteristic: CBUUID = CBUUID(string: "beb5483e-36e2-4688-b7f5-ea07361b26a8")
@@ -40,6 +41,7 @@ class BluetoothService: NSObject, ObservableObject {
     func scanForPeripherals() {
         peripheralStatus = .scanning
         centralManager.scanForPeripherals(withServices: [service])
+        print("scanning for peripherals with service", service)
     }
 }
 
@@ -109,7 +111,7 @@ extension BluetoothService: CBPeripheralDelegate {
                 return
             }
             let sensorData: Int = data.withUnsafeBytes { $0.pointee }
-            pitchValue = sensorData
+            throttleValue = sensorData
         }
     }
 }
