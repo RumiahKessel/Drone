@@ -37,7 +37,7 @@ RTPressure* barometer;
 
 //  DISPLAY_INTERVAL sets the rate at which results are displayed
 
-#define DISPLAY_INTERVAL  100                         // interval between pose displays
+#define DISPLAY_INTERVAL  50                         // interval between pose displays
 
 //  SERIAL_PORT_SPEED defines the speed to use for the debug serial port
 
@@ -72,6 +72,20 @@ void setup()
   Wire.begin();
   imu = RTIMU::createIMU(&settings);                        // create the imu object
 
+<<<<<<< HEAD
+    // Slerp power controls the fusion and can be between 0 and 1
+    // 0 means that only gyros are used, 1 means that only accels/compass are used
+    // In-between gives the fusion mix.
+    
+    fusion.setSlerpPower(0.04);
+    
+    // use of sensors in the fusion algorithm can be controlled here
+    // change any of these to false to disable that sensor
+    
+    fusion.setGyroEnable(true);
+    fusion.setAccelEnable(true);
+    fusion.setCompassEnable(true);
+=======
   Serial.print("ArduinoIMU starting using device "); Serial.println(imu->IMUName());
   if ((errcode = imu->IMUInit()) < 0) {
       Serial.print("Failed to init IMU: "); Serial.println(errcode);
@@ -105,6 +119,7 @@ void setup()
   }
 
   // calibrate();
+>>>>>>> 5d4f5f1ad6b7a4076b40dd7214de7d3f14ef81e8
 }
 
 void calibrate() {
