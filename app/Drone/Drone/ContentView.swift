@@ -30,6 +30,9 @@ struct ContentView: View {
 
     // Slider:
     @State private var sliderValue: Double = 5.0
+    
+    // Bluetooth
+    @StateObject var service = BluetoothService()
 
     private var bigCircleRadius: CGFloat = 100 // Adjust the radius of the blue circle
     
@@ -40,6 +43,8 @@ struct ContentView: View {
                 .edgesIgnoringSafeArea(.all)
 
             HStack(spacing: 20) {
+                Text(service.peripheralStatus.rawValue).font(.headline)
+                
 
                 HStack() {  
                     ZStack() {

@@ -8,7 +8,7 @@
 import Foundation
 import CoreBluetooth
 
-enum ConnectionStatus {
+enum ConnectionStatus : String {
     case connected
     case disconnected
     case scanning
