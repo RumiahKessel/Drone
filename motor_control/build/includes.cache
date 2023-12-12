@@ -1,0 +1,327 @@
+[
+  {
+    "Sourcefile": null,
+    "Include": "",
+    "Includepath": "C:\\Users\\rukes\\AppData\\Local\\Arduino15\\packages\\esp32\\hardware\\esp32\\1.0.6\\cores\\esp32"
+  },
+  {
+    "Sourcefile": null,
+    "Include": "",
+    "Includepath": "C:\\Users\\rukes\\AppData\\Local\\Arduino15\\packages\\esp32\\hardware\\esp32\\1.0.6\\variants\\esp32"
+  },
+  {
+    "Sourcefile": "C:\\Users\\rukes\\Documents\\UCB\\FA23\\CS149\\Drone\\motor_control\\build\\sketch\\motor_control.ino.cpp",
+    "Include": "ESP32Servo.h",
+    "Includepath": "C:\\Users\\rukes\\Documents\\Arduino\\libraries\\ESP32Servo\\src"
+  },
+  {
+    "Sourcefile": "C:\\Users\\rukes\\Documents\\UCB\\FA23\\CS149\\Drone\\motor_control\\build\\sketch\\motor_control.ino.cpp",
+    "Include": "PID.h",
+    "Includepath": "C:\\Users\\rukes\\Documents\\Arduino\\libraries\\PID"
+  },
+  {
+    "Sourcefile": "C:\\Users\\rukes\\Documents\\UCB\\FA23\\CS149\\Drone\\motor_control\\build\\sketch\\motor_control.ino.cpp",
+    "Include": "ESC.h",
+    "Includepath": "C:\\Users\\rukes\\Documents\\Arduino\\libraries\\RC_ESC\\src"
+  },
+  {
+    "Sourcefile": "C:\\Users\\rukes\\Documents\\UCB\\FA23\\CS149\\Drone\\motor_control\\build\\sketch\\motor_control.ino.cpp",
+    "Include": "Wire.h",
+    "Includepath": "C:\\Users\\rukes\\AppData\\Local\\Arduino15\\packages\\esp32\\hardware\\esp32\\1.0.6\\libraries\\Wire\\src"
+  },
+  {
+    "Sourcefile": "C:\\Users\\rukes\\Documents\\UCB\\FA23\\CS149\\Drone\\motor_control\\build\\sketch\\motor_control.ino.cpp",
+    "Include": "I2Cdev.h",
+    "Includepath": "C:\\Users\\rukes\\Documents\\Arduino\\libraries\\I2CDev"
+  },
+  {
+    "Sourcefile": "C:\\Users\\rukes\\Documents\\UCB\\FA23\\CS149\\Drone\\motor_control\\build\\sketch\\motor_control.ino.cpp",
+    "Include": "RTIMUSettings.h",
+    "Includepath": "C:\\Users\\rukes\\Documents\\Arduino\\libraries\\RTIMULib"
+  },
+  {
+    "Sourcefile": "C:\\Users\\rukes\\Documents\\UCB\\FA23\\CS149\\Drone\\motor_control\\build\\sketch\\motor_control.ino.cpp",
+    "Include": "CalLib.h",
+    "Includepath": "C:\\Users\\rukes\\Documents\\Arduino\\libraries\\CalLib"
+  },
+  {
+    "Sourcefile": "C:\\Users\\rukes\\Documents\\UCB\\FA23\\CS149\\Drone\\motor_control\\build\\sketch\\motor_control.ino.cpp",
+    "Include": "EEPROM.h",
+    "Includepath": "C:\\Users\\rukes\\AppData\\Local\\Arduino15\\packages\\esp32\\hardware\\esp32\\1.0.6\\libraries\\EEPROM\\src"
+  },
+  {
+    "Sourcefile": "C:\\Users\\rukes\\Documents\\UCB\\FA23\\CS149\\Drone\\motor_control\\build\\sketch\\motor_control.ino.cpp",
+    "Include": "BLEDevice.h",
+    "Includepath": "C:\\Users\\rukes\\AppData\\Local\\Arduino15\\packages\\esp32\\hardware\\esp32\\1.0.6\\libraries\\BLE\\src"
+  },
+  {
+    "Sourcefile": "C:\\Users\\rukes\\Documents\\UCB\\FA23\\CS149\\Drone\\motor_control\\build\\sketch\\motor_control.ino.cpp",
+    "Include": "",
+    "Includepath": null
+  },
+  {
+    "Sourcefile": "C:\\Users\\rukes\\Documents\\Arduino\\libraries\\ESP32Servo\\src\\ESP32PWM.cpp",
+    "Include": "",
+    "Includepath": null
+  },
+  {
+    "Sourcefile": "C:\\Users\\rukes\\Documents\\Arduino\\libraries\\ESP32Servo\\src\\ESP32Servo.cpp",
+    "Include": "",
+    "Includepath": null
+  },
+  {
+    "Sourcefile": "C:\\Users\\rukes\\Documents\\Arduino\\libraries\\PID\\PID.c",
+    "Include": "",
+    "Includepath": null
+  },
+  {
+    "Sourcefile": "C:\\Users\\rukes\\Documents\\Arduino\\libraries\\PID\\PID.cpp",
+    "Include": "",
+    "Includepath": null
+  },
+  {
+    "Sourcefile": "C:\\Users\\rukes\\Documents\\Arduino\\libraries\\RC_ESC\\src\\ESC.cpp",
+    "Include": "",
+    "Includepath": null
+  },
+  {
+    "Sourcefile": "C:\\Users\\rukes\\AppData\\Local\\Arduino15\\packages\\esp32\\hardware\\esp32\\1.0.6\\libraries\\Wire\\src\\Wire.cpp",
+    "Include": "",
+    "Includepath": null
+  },
+  {
+    "Sourcefile": "C:\\Users\\rukes\\Documents\\Arduino\\libraries\\I2CDev\\I2Cdev.cpp",
+    "Include": "",
+    "Includepath": null
+  },
+  {
+    "Sourcefile": "C:\\Users\\rukes\\Documents\\Arduino\\libraries\\RTIMULib\\RTFusionRTQF.cpp",
+    "Include": "",
+    "Includepath": null
+  },
+  {
+    "Sourcefile": "C:\\Users\\rukes\\Documents\\Arduino\\libraries\\RTIMULib\\RTIMU.cpp",
+    "Include": "",
+    "Includepath": null
+  },
+  {
+    "Sourcefile": "C:\\Users\\rukes\\Documents\\Arduino\\libraries\\RTIMULib\\RTIMUBNO055.cpp",
+    "Include": "",
+    "Includepath": null
+  },
+  {
+    "Sourcefile": "C:\\Users\\rukes\\Documents\\Arduino\\libraries\\RTIMULib\\RTIMUGD20HM303D.cpp",
+    "Include": "",
+    "Includepath": null
+  },
+  {
+    "Sourcefile": "C:\\Users\\rukes\\Documents\\Arduino\\libraries\\RTIMULib\\RTIMUGD20HM303DLHC.cpp",
+    "Include": "",
+    "Includepath": null
+  },
+  {
+    "Sourcefile": "C:\\Users\\rukes\\Documents\\Arduino\\libraries\\RTIMULib\\RTIMUGD20M303DLHC.cpp",
+    "Include": "",
+    "Includepath": null
+  },
+  {
+    "Sourcefile": "C:\\Users\\rukes\\Documents\\Arduino\\libraries\\RTIMULib\\RTIMULSM9DS0.cpp",
+    "Include": "",
+    "Includepath": null
+  },
+  {
+    "Sourcefile": "C:\\Users\\rukes\\Documents\\Arduino\\libraries\\RTIMULib\\RTIMUMPU9150.cpp",
+    "Include": "",
+    "Includepath": null
+  },
+  {
+    "Sourcefile": "C:\\Users\\rukes\\Documents\\Arduino\\libraries\\RTIMULib\\RTIMUMPU9250.cpp",
+    "Include": "",
+    "Includepath": null
+  },
+  {
+    "Sourcefile": "C:\\Users\\rukes\\Documents\\Arduino\\libraries\\RTIMULib\\RTIMUSettings.cpp",
+    "Include": "",
+    "Includepath": null
+  },
+  {
+    "Sourcefile": "C:\\Users\\rukes\\Documents\\Arduino\\libraries\\RTIMULib\\RTMath.cpp",
+    "Include": "",
+    "Includepath": null
+  },
+  {
+    "Sourcefile": "C:\\Users\\rukes\\Documents\\Arduino\\libraries\\RTIMULib\\RTPressure.cpp",
+    "Include": "",
+    "Includepath": null
+  },
+  {
+    "Sourcefile": "C:\\Users\\rukes\\Documents\\Arduino\\libraries\\RTIMULib\\RTPressureBMP180.cpp",
+    "Include": "",
+    "Includepath": null
+  },
+  {
+    "Sourcefile": "C:\\Users\\rukes\\Documents\\Arduino\\libraries\\RTIMULib\\RTPressureLPS25H.cpp",
+    "Include": "",
+    "Includepath": null
+  },
+  {
+    "Sourcefile": "C:\\Users\\rukes\\Documents\\Arduino\\libraries\\RTIMULib\\RTPressureMS5611.cpp",
+    "Include": "",
+    "Includepath": null
+  },
+  {
+    "Sourcefile": "C:\\Users\\rukes\\Documents\\Arduino\\libraries\\CalLib\\CalLib.cpp",
+    "Include": "",
+    "Includepath": null
+  },
+  {
+    "Sourcefile": "C:\\Users\\rukes\\AppData\\Local\\Arduino15\\packages\\esp32\\hardware\\esp32\\1.0.6\\libraries\\EEPROM\\src\\EEPROM.cpp",
+    "Include": "",
+    "Includepath": null
+  },
+  {
+    "Sourcefile": "C:\\Users\\rukes\\AppData\\Local\\Arduino15\\packages\\esp32\\hardware\\esp32\\1.0.6\\libraries\\BLE\\src\\BLE2902.cpp",
+    "Include": "",
+    "Includepath": null
+  },
+  {
+    "Sourcefile": "C:\\Users\\rukes\\AppData\\Local\\Arduino15\\packages\\esp32\\hardware\\esp32\\1.0.6\\libraries\\BLE\\src\\BLE2904.cpp",
+    "Include": "",
+    "Includepath": null
+  },
+  {
+    "Sourcefile": "C:\\Users\\rukes\\AppData\\Local\\Arduino15\\packages\\esp32\\hardware\\esp32\\1.0.6\\libraries\\BLE\\src\\BLEAddress.cpp",
+    "Include": "",
+    "Includepath": null
+  },
+  {
+    "Sourcefile": "C:\\Users\\rukes\\AppData\\Local\\Arduino15\\packages\\esp32\\hardware\\esp32\\1.0.6\\libraries\\BLE\\src\\BLEAdvertisedDevice.cpp",
+    "Include": "",
+    "Includepath": null
+  },
+  {
+    "Sourcefile": "C:\\Users\\rukes\\AppData\\Local\\Arduino15\\packages\\esp32\\hardware\\esp32\\1.0.6\\libraries\\BLE\\src\\BLEAdvertising.cpp",
+    "Include": "",
+    "Includepath": null
+  },
+  {
+    "Sourcefile": "C:\\Users\\rukes\\AppData\\Local\\Arduino15\\packages\\esp32\\hardware\\esp32\\1.0.6\\libraries\\BLE\\src\\BLEBeacon.cpp",
+    "Include": "",
+    "Includepath": null
+  },
+  {
+    "Sourcefile": "C:\\Users\\rukes\\AppData\\Local\\Arduino15\\packages\\esp32\\hardware\\esp32\\1.0.6\\libraries\\BLE\\src\\BLECharacteristic.cpp",
+    "Include": "",
+    "Includepath": null
+  },
+  {
+    "Sourcefile": "C:\\Users\\rukes\\AppData\\Local\\Arduino15\\packages\\esp32\\hardware\\esp32\\1.0.6\\libraries\\BLE\\src\\BLECharacteristicMap.cpp",
+    "Include": "",
+    "Includepath": null
+  },
+  {
+    "Sourcefile": "C:\\Users\\rukes\\AppData\\Local\\Arduino15\\packages\\esp32\\hardware\\esp32\\1.0.6\\libraries\\BLE\\src\\BLEClient.cpp",
+    "Include": "",
+    "Includepath": null
+  },
+  {
+    "Sourcefile": "C:\\Users\\rukes\\AppData\\Local\\Arduino15\\packages\\esp32\\hardware\\esp32\\1.0.6\\libraries\\BLE\\src\\BLEDescriptor.cpp",
+    "Include": "",
+    "Includepath": null
+  },
+  {
+    "Sourcefile": "C:\\Users\\rukes\\AppData\\Local\\Arduino15\\packages\\esp32\\hardware\\esp32\\1.0.6\\libraries\\BLE\\src\\BLEDescriptorMap.cpp",
+    "Include": "",
+    "Includepath": null
+  },
+  {
+    "Sourcefile": "C:\\Users\\rukes\\AppData\\Local\\Arduino15\\packages\\esp32\\hardware\\esp32\\1.0.6\\libraries\\BLE\\src\\BLEDevice.cpp",
+    "Include": "",
+    "Includepath": null
+  },
+  {
+    "Sourcefile": "C:\\Users\\rukes\\AppData\\Local\\Arduino15\\packages\\esp32\\hardware\\esp32\\1.0.6\\libraries\\BLE\\src\\BLEEddystoneTLM.cpp",
+    "Include": "",
+    "Includepath": null
+  },
+  {
+    "Sourcefile": "C:\\Users\\rukes\\AppData\\Local\\Arduino15\\packages\\esp32\\hardware\\esp32\\1.0.6\\libraries\\BLE\\src\\BLEEddystoneURL.cpp",
+    "Include": "",
+    "Includepath": null
+  },
+  {
+    "Sourcefile": "C:\\Users\\rukes\\AppData\\Local\\Arduino15\\packages\\esp32\\hardware\\esp32\\1.0.6\\libraries\\BLE\\src\\BLEExceptions.cpp",
+    "Include": "",
+    "Includepath": null
+  },
+  {
+    "Sourcefile": "C:\\Users\\rukes\\AppData\\Local\\Arduino15\\packages\\esp32\\hardware\\esp32\\1.0.6\\libraries\\BLE\\src\\BLEHIDDevice.cpp",
+    "Include": "",
+    "Includepath": null
+  },
+  {
+    "Sourcefile": "C:\\Users\\rukes\\AppData\\Local\\Arduino15\\packages\\esp32\\hardware\\esp32\\1.0.6\\libraries\\BLE\\src\\BLERemoteCharacteristic.cpp",
+    "Include": "",
+    "Includepath": null
+  },
+  {
+    "Sourcefile": "C:\\Users\\rukes\\AppData\\Local\\Arduino15\\packages\\esp32\\hardware\\esp32\\1.0.6\\libraries\\BLE\\src\\BLERemoteDescriptor.cpp",
+    "Include": "",
+    "Includepath": null
+  },
+  {
+    "Sourcefile": "C:\\Users\\rukes\\AppData\\Local\\Arduino15\\packages\\esp32\\hardware\\esp32\\1.0.6\\libraries\\BLE\\src\\BLERemoteService.cpp",
+    "Include": "",
+    "Includepath": null
+  },
+  {
+    "Sourcefile": "C:\\Users\\rukes\\AppData\\Local\\Arduino15\\packages\\esp32\\hardware\\esp32\\1.0.6\\libraries\\BLE\\src\\BLEScan.cpp",
+    "Include": "",
+    "Includepath": null
+  },
+  {
+    "Sourcefile": "C:\\Users\\rukes\\AppData\\Local\\Arduino15\\packages\\esp32\\hardware\\esp32\\1.0.6\\libraries\\BLE\\src\\BLESecurity.cpp",
+    "Include": "",
+    "Includepath": null
+  },
+  {
+    "Sourcefile": "C:\\Users\\rukes\\AppData\\Local\\Arduino15\\packages\\esp32\\hardware\\esp32\\1.0.6\\libraries\\BLE\\src\\BLEServer.cpp",
+    "Include": "",
+    "Includepath": null
+  },
+  {
+    "Sourcefile": "C:\\Users\\rukes\\AppData\\Local\\Arduino15\\packages\\esp32\\hardware\\esp32\\1.0.6\\libraries\\BLE\\src\\BLEService.cpp",
+    "Include": "",
+    "Includepath": null
+  },
+  {
+    "Sourcefile": "C:\\Users\\rukes\\AppData\\Local\\Arduino15\\packages\\esp32\\hardware\\esp32\\1.0.6\\libraries\\BLE\\src\\BLEServiceMap.cpp",
+    "Include": "",
+    "Includepath": null
+  },
+  {
+    "Sourcefile": "C:\\Users\\rukes\\AppData\\Local\\Arduino15\\packages\\esp32\\hardware\\esp32\\1.0.6\\libraries\\BLE\\src\\BLEUUID.cpp",
+    "Include": "",
+    "Includepath": null
+  },
+  {
+    "Sourcefile": "C:\\Users\\rukes\\AppData\\Local\\Arduino15\\packages\\esp32\\hardware\\esp32\\1.0.6\\libraries\\BLE\\src\\BLEUtils.cpp",
+    "Include": "",
+    "Includepath": null
+  },
+  {
+    "Sourcefile": "C:\\Users\\rukes\\AppData\\Local\\Arduino15\\packages\\esp32\\hardware\\esp32\\1.0.6\\libraries\\BLE\\src\\BLEValue.cpp",
+    "Include": "",
+    "Includepath": null
+  },
+  {
+    "Sourcefile": "C:\\Users\\rukes\\AppData\\Local\\Arduino15\\packages\\esp32\\hardware\\esp32\\1.0.6\\libraries\\BLE\\src\\FreeRTOS.cpp",
+    "Include": "",
+    "Includepath": null
+  },
+  {
+    "Sourcefile": "C:\\Users\\rukes\\AppData\\Local\\Arduino15\\packages\\esp32\\hardware\\esp32\\1.0.6\\libraries\\BLE\\src\\GeneralUtils.cpp",
+    "Include": "",
+    "Includepath": null
+  }
+]
