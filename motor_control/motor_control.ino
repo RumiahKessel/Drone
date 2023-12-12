@@ -20,6 +20,7 @@
 #define ROLL_UUID "beb5483e-36e2-4688-b7f5-ea07361b26a8"
 #define YAW_UUID "beb5483e-36e3-4688-b7f5-ea07361b26a8"
 #define THROTTLE_UUID "beb5483e-36e4-4688-b7f5-ea07361b26a8"
+#define SPEED_UUID "beb5483e-36e5-4688-b7f5-ea07361b26a8"
 
 #define LED_BUILTIN (2) // not defaulted properly for ESP32s/you must define it
 #define BATTERY_SENS (13) // pin for battery sense
@@ -46,6 +47,7 @@ int throttle;
 int pitch;
 int roll;
 int yaw;
+int speed;
 
 // Attitude estimation
 RTIMU *imu;
@@ -76,9 +78,13 @@ int parse_ble(std::__cxx11::string value){
 class PITCHCallbacks: public BLECharacteristicCallbacks {
     void onWrite(BLECharacteristic *pCharacteristic) {
       std::string value = pCharacteristic->getValue();
+      int64_t buff = 0;
       if (value.length() > 0) {
-        pitch = parse_ble(value);
-        Serial.printf("Setting pitch = %d", pitch);
+//        pitch = parse_ble(value);
+        for (int i = 0; i < value.length(); i++){
+          buff = buff | (((uint8_t)value[i]) << (i * 8));
+        }
+        Serial.printf("\nSetting pitch = %d\n\n", buff);
       }
     }
 };
@@ -109,6 +115,16 @@ class THROTTLECallbacks: public BLECharacteristicCallbacks {
       if (value.length() > 0) {
         throttle = parse_ble(value);
         Serial.printf("Setting throttle = %d", throttle);
+      }
+    }
+};
+
+class SPEEDCallbacks: public BLECharacteristicCallbacks {
+    void onWrite(BLECharacteristic *pCharacteristic) {
+      std::string value = pCharacteristic->getValue();
+      if (value.length() > 0) {
+        speed = parse_ble(value);
+        Serial.printf("Setting speed = %d", speed);
       }
     }
 };
@@ -177,6 +193,13 @@ void initialize_ble(){
                                        );
   throttleCharacteristic->setCallbacks(new THROTTLECallbacks());
   throttleCharacteristic->setValue("I am THROTTLE");
+  BLECharacteristic *speedCharacteristic = pService->createCharacteristic(
+                                         SPEED_UUID,
+                                         BLECharacteristic::PROPERTY_READ |
+                                         BLECharacteristic::PROPERTY_WRITE
+                                       );
+  speedCharacteristic->setCallbacks(new THROTTLECallbacks());
+  speedCharacteristic->setValue("I am SPEED");
   
   pService->start();
 
@@ -221,13 +244,13 @@ void setup() {
   initialize_rtimu();
 //  initialize_pid();
 //  initialize_motors();
-//  pitch, roll, yaw, throttle = 0;
+  pitch, roll, yaw, throttle = 0;
 
   Serial.printf("Initialization successful\n");
 } // speed will now jump to pot setting
 
 void loop() {
-//  float bat = analogReadMilliVolts(BATTERY_SENS) * .0047;
+  float bat = analogReadMilliVolts(BATTERY_SENS) * .0047;
   int loopCount = 1;
   while (imu->IMURead()) {                                // get the latest data if ready yet
     // this flushes remaining data in case we are falling behind
@@ -240,8 +263,11 @@ void loop() {
     float cur_yaw = vec.z() * RTMATH_RAD_TO_DEGREE;
     Serial.print("roll:"); Serial.print(cur_roll);
     Serial.print(" pitch:"); Serial.print(cur_pitch);
-    Serial.print(" yaw:"); Serial.println(cur_yaw);
-//    angle_stabilization(cur_roll, cur_yaw, cur_pitch, roll, pitch, yaw, throttle);
+    Serial.print(" yaw:"); Serial.print(cur_yaw);
+     Serial.print(" desired_roll:"); Serial.print(roll);
+     Serial.print(" desired_pitch:"); Serial.print(pitch);
+     Serial.print(" desired_yaw:"); Serial.print(yaw);
+//     angle_stabilization(cur_roll, cur_yaw, cur_pitch, roll, pitch, yaw, throttle);
   }
 }
 

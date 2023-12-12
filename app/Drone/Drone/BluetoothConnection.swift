@@ -10,6 +10,7 @@ import CoreBluetooth
 
 // F4833386-80AA-B418-47A1-1A9C6A72FD25
 // 6D678691-3DCF-7BF3-2D6C-C3100C932AF3
+let droneService: CBUUID = CBUUID(string:"4fafc201-1fb5-459e-8fcc-c5c9c331914b")
 let service: CBUUID = CBUUID(string:"4fafc201-1fb5-459e-8fcc-c5c9c331914b")
 let pitchCharacteristic: CBUUID = CBUUID(string: "beb5483e-36e1-4688-b7f5-ea07361b26a8")
 let rollCharacteristic: CBUUID = CBUUID(string: "beb5483e-36e2-4688-b7f5-ea07361b26a8")
@@ -39,13 +40,13 @@ class BluetoothService: NSObject, ObservableObject {
 extension BluetoothService: CBCentralManagerDelegate {
     func centralManagerDidUpdateState(_ central: CBCentralManager) {
         if central.state == .poweredOn {
+            print("Scanning for peripherals")
             self.centralManager?.scanForPeripherals(withServices: nil)
         }
     }
     
     func centralManager(_ central: CBCentralManager, didDiscover peripheral: CBPeripheral, advertisementData: [String: Any], rssi RSSI: NSNumber) {
-        if peripheral.name == "Super Drone" {
-            print(peripheral.identifier)
+        if peripheral.name == "Drone" {
             print("Discovered \(peripheral.name!)")
             if !peripherals.contains(peripheral) {
                 sensorPeripheral = peripheral
@@ -59,7 +60,6 @@ extension BluetoothService: CBCentralManagerDelegate {
     func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
         print("Successfully connected!")
         peripheral.delegate = self
-        print(peripheral.delegate)
         peripheral.discoverServices([service])
         self.centralManager?.stopScan()
     }
@@ -79,9 +79,7 @@ extension BluetoothService: CBPeripheralDelegate {
     
     func peripheral(_ peripheral: CBPeripheral, didDiscoverServices error: Error?) {
         for service in peripheral.services ?? [] {
-            print(sensorPeripheral)
-            print(service)
-            if service.uuid == sensorPeripheral {
+            if service.uuid == droneService {
                 print("Finding characteristics")
                 peripheral.discoverCharacteristics([pitchCharacteristic], for: service)
                 peripheral.discoverCharacteristics([throttleCharacteristic], for: service)
@@ -90,29 +88,89 @@ extension BluetoothService: CBPeripheralDelegate {
     }
     
     func peripheral(_ peripheral: CBPeripheral, didDiscoverCharacteristicsFor service: CBService, error: Error?) {
-        for charecteristic in service.characteristics ?? [] {
-            peripheral.setNotifyValue(true, for: charecteristic)
-            print("Found characteristic, waiting on values.")
+        for characteristic in service.characteristics ?? [] {
+            print("Found characteristic: ", characteristic.uuid)
         }
     }
     
-//    func peripheral(_ peripheral: CBPeripheral, didUpdateValueFor characteristic: CBCharacteristic, error: Error?) {
-//        if characteristic.uuid == pitchCharacteristic {
-//            guard let data = characteristic.value else {
-//                print("No data received for \(characteristic.uuid.uuidString)")
-//                return
-//            }
-//            let sensorData: Int = data.withUnsafeBytes { $0.pointee }
-//            pitchValue = sensorData
-//        }
-//        if characteristic.uuid == throttleCharacteristic {
-//            guard let data = characteristic.value else {
-//                print("No data received for \(characteristic.uuid.uuidString)")
-//                return
-//            }
-//            let sensorData: Int = data.withUnsafeBytes { $0.pointee }
-//            throttleValue = sensorData
-//        }
-//    }
+    private func writeValue(to characteristic: CBUUID, with data: Data) {
+       guard let peripheral = sensorPeripheral else {
+           print("Peripheral not found")
+           return
+       }
+
+       guard let service = peripheral.services?.first(where: { $0.uuid == service }) else {
+           print("Service not found")
+           return
+       }
+
+       guard let targetCharacteristic = service.characteristics?.first(where: { $0.uuid == characteristic }) else {
+           print("Characteristic not found")
+           return
+       }
+        
+       peripheral.writeValue(data, for: targetCharacteristic, type: .withResponse)
+        print("Wrote ", data, "to characteristic: ", targetCharacteristic.uuid)
+   }
+    
+    func peripheral(_ peripheral: CBPeripheral, didWriteValueFor characteristic: CBCharacteristic, error: Error?) {
+        if let error = error {
+            print("Errored")
+            return
+        }
+        print("Successfully wrote back characteristic")
+    }
+    
+    func write(to characteristic: CBUUID, with data: Data) {
+        guard let peripheral = sensorPeripheral else {
+           print("Peripheral not found")
+           return
+       }
+       guard let service = peripheral.services?.first(where: { $0.uuid == service }) else {
+           print("Service not found")
+           return
+       }
+       guard let targetCharacteristic = service.characteristics?.first(where: { $0.uuid == characteristic }) else {
+           print("Characteristic not found")
+           return
+       }
+       if peripheral.canSendWriteWithoutResponse {
+            peripheral.writeValue(data, for: targetCharacteristic, type: .withoutResponse)
+            print("Wrote w/o ", data, "to characteristic: ", targetCharacteristic.uuid)
+
+        }
+    }
+
+    
+    // func peripheralIsReady(toSendWriteWithoutResponse peripheral: CBPeripheral) {
+    //     // Called when peripheral is ready to send write without response again.
+    //     // Write some value to some target characteristic.
+    //     write(value: someValue, characteristic: someCharacteristic)
+    // }
+    
+    // Example function to update pitch characteristic
+        func updatePitchCharacteristic(with value: Int) {
+            var mutableValue = value
+            let data = withUnsafeBytes(of: &mutableValue) { Data($0) }
+                        
+            let test = data.withUnsafeBytes {
+                $0.load(as: Int.self)
+            }
+            let stringValue = String(mutableValue)
+            
+            if let stringData = stringValue.data(using: .utf8) {
+                // Now 'data' contains the bytes representing the string
+                print(mutableValue, stringData, data, stringValue)
+                writeValue(to: pitchCharacteristic, with:  stringData)
+            } else {
+                print("Failed to convert string to data")
+            }
+        }
+
+        func updateThrottleCharacteristic(with value: Int) {
+            let data = withUnsafeBytes(of: value) { Data($0) }
+            writeValue(to: throttleCharacteristic, with: data)
+        }
+
     
 }
