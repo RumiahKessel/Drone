@@ -104,7 +104,7 @@ RTIMUSettings::RTIMUSettings()
     m_MPU9250CompassSampleRate = 40;
     m_MPU9250GyroLpf = MPU9250_GYRO_LPF_41;
     m_MPU9250AccelLpf = MPU9250_ACCEL_LPF_41;
-    m_MPU9250GyroFsr = MPU9250_GYROFSR_1000;
+    m_MPU9250GyroFsr = MPU9250_GYROFSR_2000;
     m_MPU9250AccelFsr = MPU9250_ACCELFSR_8;
     m_I2CSlaveAddress = MPU9250_ADDRESS0;
 #endif

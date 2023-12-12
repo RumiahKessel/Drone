@@ -261,9 +261,9 @@ void angle_stabilization(double curr_roll, double curr_yaw, double curr_pitch, d
 
     FR = desired_speed - pitch_pid - roll_pid + Yaw_pid
 
-    RL = desired_speed + pitch_pid - roll_pid - Yaw_pid
+    RL = desired_speed + pitch_pid - roll_pid + Yaw_pid
 
-    RR = desired_speed + pitch_pid + roll_pid + Yaw_pid
+    RR = desired_speed + pitch_pid + roll_pid - Yaw_pid
 
   */
 # 259 "C:\\Users\\rukes\\Documents\\UCB\\FA23\\CS149\\Drone\\motor_control\\motor_control.ino"
@@ -272,7 +272,7 @@ void angle_stabilization(double curr_roll, double curr_yaw, double curr_pitch, d
     return;
   }
 
-  float yaw_out = PIDController_Update(&yaw_pid, desired_yaw, curr_yaw);
+  float yaw_out = PIDController_Update(&yaw_pid, 0, desired_yaw + curr_yaw);
   float roll_out = PIDController_Update(&roll_pid, desired_roll, curr_roll);
   float pitch_out = PIDController_Update(&pitch_pid, desired_pitch, curr_pitch);
 
