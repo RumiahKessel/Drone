@@ -28,6 +28,11 @@
 #include "CalLib.h"
 #include <EEPROM.h>
 
+#include <BLEDevice.h>
+#include <BLEUtils.h>
+#include <BLEServer.h>
+#define SERVICE_UUID        "4fafc201-1fb5-459e-8fcc-c5c9c331914b"
+
 RTIMU *imu;                                           // the IMU object
 RTIMUSettings settings;                               // the settings object
 CALLIB_DATA calData;                                  // the calibration data
@@ -50,6 +55,14 @@ void setup()
   Serial.println("ArduinoMagCal starting");
   Serial.println("Enter s to save current data to EEPROM");
   Wire.begin();
+
+  BLEDevice::init("Drone");
+  BLEServer *pServer = BLEDevice::createServer();
+  BLEService *pService = pServer->createService(SERVICE_UUID);
+  pService->start();
+
+  BLEAdvertising *pAdvertising = pServer->getAdvertising();
+  pAdvertising->start();
    
   imu = RTIMU::createIMU(&settings);                 // create the imu object
   imu->IMUInit();
@@ -90,6 +103,7 @@ void loop()
   if (Serial.available()) {
     if (Serial.read() == 's') {                  // save the data
       calData.magValid = true;
+      Serial.printf("%x, %x, %x, %x, %0.2f, %0.2f, %0.2f, %0.2f, %0.2f, %0.2f\n", calData.validL, calData.validH, calData.magValid, calData.pad, calData.magMin[0], calData.magMin[1], calData.magMin[2], calData.magMax[0], calData.magMax[1], calData.magMax[2]);
       calLibWrite(0, &calData);
       Serial.print("Mag cal data saved for device "); Serial.println(imu->IMUName());
     }

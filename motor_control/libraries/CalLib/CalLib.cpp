@@ -67,12 +67,14 @@ void calLibWrite(byte device, CALLIB_DATA *calData)
   byte *ptr = (byte *)calData;
   byte length = sizeof(CALLIB_DATA);
   int eeprom = sizeof(CALLIB_DATA) * device;
+  EEPROM.begin(sizeof(CALLIB_DATA));
 
   calData->validL = CALLIB_DATA_VALID_LOW;
   calData->validH = CALLIB_DATA_VALID_HIGH;
   
   for (byte i = 0; i < length; i++)
     EEPROM.write(eeprom + i, *ptr++);
+  EEPROM.commit();
 }
 
 boolean calLibRead(byte device, CALLIB_DATA *calData)
@@ -80,6 +82,7 @@ boolean calLibRead(byte device, CALLIB_DATA *calData)
   byte *ptr = (byte *)calData;
   byte length = sizeof(CALLIB_DATA);
   int eeprom = sizeof(CALLIB_DATA) * device;
+  EEPROM.begin(sizeof(CALLIB_DATA));
 
   calData->magValid = false;
 

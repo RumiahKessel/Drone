@@ -59,23 +59,6 @@ PIDController roll_pid;
 PIDController pitch_pid;
 PIDController yaw_pid;
 
-#line 60 "C:\\Users\\rukes\\Documents\\UCB\\FA23\\CS149\\Drone\\motor_control\\motor_control.ino"
-int parse_ble(std::__cxx11::string value);
-#line 120 "C:\\Users\\rukes\\Documents\\UCB\\FA23\\CS149\\Drone\\motor_control\\motor_control.ino"
-void initialize_pid();
-#line 146 "C:\\Users\\rukes\\Documents\\UCB\\FA23\\CS149\\Drone\\motor_control\\motor_control.ino"
-void initialize_ble();
-#line 187 "C:\\Users\\rukes\\Documents\\UCB\\FA23\\CS149\\Drone\\motor_control\\motor_control.ino"
-void initialize_rtimu();
-#line 214 "C:\\Users\\rukes\\Documents\\UCB\\FA23\\CS149\\Drone\\motor_control\\motor_control.ino"
-void setup();
-#line 228 "C:\\Users\\rukes\\Documents\\UCB\\FA23\\CS149\\Drone\\motor_control\\motor_control.ino"
-void loop();
-#line 248 "C:\\Users\\rukes\\Documents\\UCB\\FA23\\CS149\\Drone\\motor_control\\motor_control.ino"
-void angle_stabilization(double curr_roll, double curr_yaw, double curr_pitch, double desired_roll, double desired_yaw, double desired_pitch, int desired_speed);
-#line 290 "C:\\Users\\rukes\\Documents\\UCB\\FA23\\CS149\\Drone\\motor_control\\motor_control.ino"
-void set_motors(int fl_spd, int fr_spd, int rl_spd, int rr_spd);
-#line 60 "C:\\Users\\rukes\\Documents\\UCB\\FA23\\CS149\\Drone\\motor_control\\motor_control.ino"
 int parse_ble(std::__cxx11::string value){
   int negative = 1;
   int buff = 0;
@@ -221,7 +204,7 @@ void initialize_rtimu(){
   // Slerp power controls the fusion and can be between 0 and 1
   // 0 means that only gyros are used, 1 means that only accels/compass are used
   // In-between gives the fusion mix.
-  fusion.setSlerpPower(0.04);
+  fusion.setSlerpPower(0.03);
   
   // use of sensors in the fusion algorithm can be controlled here
   // change any of these to false to disable that sensor
@@ -256,40 +239,40 @@ void loop() {
     float cur_roll = vec.x() * RTMATH_RAD_TO_DEGREE;
     float cur_pitch = vec.y() * RTMATH_RAD_TO_DEGREE;
     float cur_yaw = vec.z() * RTMATH_RAD_TO_DEGREE;
-    Serial.print(" roll:"); Serial.print(cur_roll);
+    Serial.print("roll:"); Serial.print(cur_roll);
     Serial.print(" pitch:"); Serial.print(cur_pitch);
-    Serial.print(" yaw:"); Serial.println(cur_yaw);
+    Serial.print(" yaw:"); Serial.print(cur_yaw);
     angle_stabilization(cur_roll, cur_yaw, cur_pitch, roll, pitch, yaw, throttle);
   }
 }
 
-// x is roll (positive is left), y is yaw (positive is right), z is pitch (positive is down)
+// x is roll (positive is right), y is yaw (positive is right), z is pitch (positive is up)
 void angle_stabilization(double curr_roll, double curr_yaw, double curr_pitch, double desired_roll, double desired_yaw, double desired_pitch, int desired_speed){
   /*
     Logic here is as follows. I have 3 pid controllers one for each angle. 
     The yaw gets to influence the ratio between the diagonals. 
     The roll gets to influence the ratio between left and right.
     The pitch gets to influence the ratio between front and back.
-    FL = desired_speed - pitch_pid + roll_pid - Yaw_pid
-    FR = desired_speed - pitch_pid - roll_pid + Yaw_pid
-    RL = desired_speed + pitch_pid - roll_pid - Yaw_pid
-    RR = desired_speed + pitch_pid + roll_pid + Yaw_pid
+    FL = desired_speed + pitch_pid + roll_pid - Yaw_pid
+    FR = desired_speed + pitch_pid - roll_pid + Yaw_pid
+    RL = desired_speed - pitch_pid + roll_pid + Yaw_pid
+    RR = desired_speed - pitch_pid - roll_pid - Yaw_pid
   */
   if (desired_speed == 0){
     set_motors(0, 0, 0, 0);
     return;
   } 
 
-  float yaw_out = PIDController_Update(&yaw_pid, desired_yaw, curr_yaw);
+  float yaw_out = PIDController_Update(&yaw_pid, 0, desired_yaw + curr_yaw);
   float roll_out = PIDController_Update(&roll_pid, desired_roll, curr_roll);
   float pitch_out = PIDController_Update(&pitch_pid, desired_pitch, curr_pitch);
   
   int fl_spd = desired_speed - pitch_out + roll_out - yaw_out;
   int fr_spd = desired_speed - pitch_out - roll_out + yaw_out;
-  int rl_spd = desired_speed + pitch_out - roll_out - yaw_out;
-  int rr_spd = desired_speed + pitch_out + roll_out + yaw_out;
+  int rl_spd = desired_speed + pitch_out + roll_out + yaw_out;
+  int rr_spd = desired_speed + pitch_out - roll_out - yaw_out;
 
-  Serial.printf("FL: %d, FR: %d, RL: %d, RR: %d\n", fl_spd, fr_spd, rl_spd, rr_spd);
+  Serial.printf("FL:%d FR:%d RL:%d RR:%d\n", fl_spd, fr_spd, rl_spd, rr_spd);
   
   set_motors(fl_spd, fr_spd, rl_spd, rr_spd);
 }
