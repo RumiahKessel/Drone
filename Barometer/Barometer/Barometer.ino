@@ -39,7 +39,7 @@ RTIMUSettings settings;                               // the settings object
 
 //  DISPLAY_INTERVAL sets the rate at which results are displayed
 
-#define DISPLAY_INTERVAL  100                         // interval between pose displays
+#define DISPLAY_INTERVAL  1                         // interval between pose displays
 
 //  SERIAL_PORT_SPEED defines the speed to use for the debug serial port
 
