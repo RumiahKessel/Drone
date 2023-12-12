@@ -14,10 +14,10 @@ struct ContentView: View {
     @State private var isLandscape = UIDevice.current.orientation.isLandscape
 
    // Directions:
-    @State private var leftxDist: Double = 0.0
-    @State private var rightxDist: Double = 0.0
-    @State private var leftyDist: Double = 0.0
-    @State private var rightyDist: Double = 0.0
+    @State private var leftFinal: CGPoint = .zero
+    @State private var rightFinal: CGPoint = .zero
+    @State private var leftFinalText: String = ""
+    @State private var rightFinalText: String = ""
     
     // Joystick Controls:
     @State private var location: CGPoint = CGPoint(x: 180, y: UIScreen.main.bounds.height / 2)
@@ -28,6 +28,9 @@ struct ContentView: View {
     @State private var rightInnerCircleLocation: CGPoint = CGPoint(x: 180, y: UIScreen.main.bounds.height / 2)
     @GestureState private var rightFingerLocation: CGPoint? = nil
 
+    // Slider:
+    @State private var sliderValue: Double = 5.0
+
     private var bigCircleRadius: CGFloat = 100 // Adjust the radius of the blue circle
     
     var body: some View {
@@ -36,12 +39,12 @@ struct ContentView: View {
             MapView(initialCoordinate: CLLocationCoordinate2D(latitude: 37.875, longitude: -122.2578), zoomLevel: 0.001)
                 .edgesIgnoringSafeArea(.all)
 
-            HStack(spacing: 100) {
+            HStack(spacing: 20) {
 
                 HStack() {  
                     ZStack() {
                         Circle()
-                            .foregroundColor(.gray.opacity(0.4))
+                            .foregroundColor(.gray.opacity(0.5))
                             .frame(width: bigCircleRadius * 2, height: bigCircleRadius * 2)
                             .position(location)
                         
@@ -52,19 +55,33 @@ struct ContentView: View {
                             .position(innerCircleLocation)
                             .gesture(fingerDrag)
                     }
-                    Text(angleText)
+                    Text(leftFinalText)
                        .font(.headline)
                        .foregroundColor(.white)
                        .padding()
-                       .background(Color.purple)
+                       .frame(minWidth: 200)
+                       .background(Color.blue)
                        .cornerRadius(10)
-                       .position(x: -90, y: 50)
+                       .position(x: -5, y: 50)
+                }.onChange(of: innerCircleLocation) {
+                    leftFinal = CGPoint(x: (innerCircleLocation.x - 180) * 10, y: (innerCircleLocation.y - 215) * -10)
+                    updateText(final: leftFinal, textBinding: $leftFinalText)
                 }
+                
+                VStack() {
+                    Slider(value: $sliderValue, in: 0...10, step: 0.5)
+                    Text("\(String(format: "%.1f", sliderValue))")
+                }.frame(width: 200, height: 100)
+                    .background(Color.gray)
+                    .cornerRadius(10)
+                    .foregroundColor(.white)
+                    .padding()
+                
                 
                 HStack() {
                     ZStack() {
                         Circle()
-                            .foregroundColor(.gray.opacity(0.4))
+                            .foregroundColor(.gray.opacity(0.5))
                             .frame(width: bigCircleRadius * 2, height: bigCircleRadius * 2)
                             .position(rightLocation)
                         
@@ -76,19 +93,32 @@ struct ContentView: View {
                             .gesture(rightFingerDrag)
                     }
                      // Angle text
-                    Text(rightAngleText)
+                    Text(rightFinalText)
                         .font(.headline)
                         .foregroundColor(.white)
                         .padding()
-                        .background(Color.purple)
+                        .frame(minWidth: 200)
+                        .background(Color.blue)
                         .cornerRadius(10)
-                        .position(x: -80, y: 50)
+                        .position(x: 5, y: 50)
+                }.onChange(of: rightInnerCircleLocation) {
+                    rightFinal = CGPoint(x: (rightInnerCircleLocation.x - 180) * 10, y: (rightInnerCircleLocation.y - 215) * -10)
+                    updateText(final: rightFinal, textBinding: $rightFinalText)
                 }
             
                
               }
             }
+        
         }
+
+    
+     func updateText(final: CGPoint, textBinding: Binding<String>) {
+           let formattedX = String(format: "%.0f", final.x)
+           let formattedY = String(format: "%.0f", final.y)
+           textBinding.wrappedValue = "X: \(formattedX), Y: \(formattedY)"
+       }
+
 
     var fingerDrag: some Gesture {
         DragGesture()
@@ -129,19 +159,6 @@ struct ContentView: View {
                 rightInnerCircleLocation = center
             }
     }
-
-
-        var angleText: String {
-            let formattedX = String(format: "%.0f", (innerCircleLocation.x))
-            let formattedY = String(format: "%.0f", (innerCircleLocation.y))
-            return "locX: \(formattedX), locY: \(formattedY)"
-        }
-
-        var rightAngleText: String {
-            let formattedX = String(format: "%.0f", (rightInnerCircleLocation.x))
-            let formattedY = String(format: "%.0f", (rightInnerCircleLocation.y))
-            return "locX: \(formattedX), locY: \(formattedY)"
-        }
 }
 
 #Preview {

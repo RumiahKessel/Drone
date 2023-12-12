@@ -11,6 +11,7 @@
 		803320042B27B9EE004652E5 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 803320032B27B9EE004652E5 /* ContentView.swift */; };
 		803320062B27B9EF004652E5 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 803320052B27B9EF004652E5 /* Assets.xcassets */; };
 		803320092B27B9EF004652E5 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 803320082B27B9EF004652E5 /* Preview Assets.xcassets */; };
+		80E9631B2B284D9B005936E9 /* BluetoothConnection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80E9631A2B284D9B005936E9 /* BluetoothConnection.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -19,6 +20,8 @@
 		803320032B27B9EE004652E5 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		803320052B27B9EF004652E5 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		803320082B27B9EF004652E5 /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
+		80E9631A2B284D9B005936E9 /* BluetoothConnection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BluetoothConnection.swift; sourceTree = "<group>"; };
+		80E9631C2B284E4D005936E9 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -51,6 +54,8 @@
 		803320002B27B9EE004652E5 /* Drone */ = {
 			isa = PBXGroup;
 			children = (
+				80E9631C2B284E4D005936E9 /* Info.plist */,
+				80E9631A2B284D9B005936E9 /* BluetoothConnection.swift */,
 				803320012B27B9EE004652E5 /* DroneApp.swift */,
 				803320032B27B9EE004652E5 /* ContentView.swift */,
 				803320052B27B9EF004652E5 /* Assets.xcassets */,
@@ -138,6 +143,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				803320042B27B9EE004652E5 /* ContentView.swift in Sources */,
+				80E9631B2B284D9B005936E9 /* BluetoothConnection.swift in Sources */,
 				803320022B27B9EE004652E5 /* DroneApp.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -275,6 +281,9 @@
 				DEVELOPMENT_TEAM = VZ55F6HT3L;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Drone/Info.plist;
+				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "Allow for bluetooth use.";
+				INFOPLIST_KEY_NSBluetoothPeripheralUsageDescription = "Please allow using bluetooth.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -304,6 +313,9 @@
 				DEVELOPMENT_TEAM = VZ55F6HT3L;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Drone/Info.plist;
+				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "Allow for bluetooth use.";
+				INFOPLIST_KEY_NSBluetoothPeripheralUsageDescription = "Please allow using bluetooth.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
