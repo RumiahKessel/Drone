@@ -23,8 +23,6 @@ class BluetoothService: NSObject, ObservableObject {
     var sensorPeripheral: CBPeripheral?
     private var peripherals: [CBPeripheral] = []
     @Published var peripheralConnection : String = ""
-    @Published var pitchValue: Int = 0
-    @Published var throttleValue: Int = 0
     
     override init() {
         super.init()
@@ -83,6 +81,9 @@ extension BluetoothService: CBPeripheralDelegate {
                 print("Finding characteristics")
                 peripheral.discoverCharacteristics([pitchCharacteristic], for: service)
                 peripheral.discoverCharacteristics([throttleCharacteristic], for: service)
+                peripheral.discoverCharacteristics([rollCharacteristic], for: service)
+                peripheral.discoverCharacteristics([yawCharacteristic], for: service)
+                peripheral.discoverCharacteristics([sliderCharacteristic], for: service)
             }
         }
     }
@@ -121,46 +122,12 @@ extension BluetoothService: CBPeripheralDelegate {
         print("Successfully wrote back characteristic")
     }
     
-    func write(to characteristic: CBUUID, with data: Data) {
-        guard let peripheral = sensorPeripheral else {
-           print("Peripheral not found")
-           return
-       }
-       guard let service = peripheral.services?.first(where: { $0.uuid == service }) else {
-           print("Service not found")
-           return
-       }
-       guard let targetCharacteristic = service.characteristics?.first(where: { $0.uuid == characteristic }) else {
-           print("Characteristic not found")
-           return
-       }
-       if peripheral.canSendWriteWithoutResponse {
-            peripheral.writeValue(data, for: targetCharacteristic, type: .withoutResponse)
-            print("Wrote w/o ", data, "to characteristic: ", targetCharacteristic.uuid)
-
-        }
-    }
-
-    
-    // func peripheralIsReady(toSendWriteWithoutResponse peripheral: CBPeripheral) {
-    //     // Called when peripheral is ready to send write without response again.
-    //     // Write some value to some target characteristic.
-    //     write(value: someValue, characteristic: someCharacteristic)
-    // }
     
     // Example function to update pitch characteristic
         func updatePitchCharacteristic(with value: Int) {
             var mutableValue = value
-            let data = withUnsafeBytes(of: &mutableValue) { Data($0) }
-                        
-            let test = data.withUnsafeBytes {
-                $0.load(as: Int.self)
-            }
             let stringValue = String(mutableValue)
-            
             if let stringData = stringValue.data(using: .utf8) {
-                // Now 'data' contains the bytes representing the string
-                print(mutableValue, stringData, data, stringValue)
                 writeValue(to: pitchCharacteristic, with:  stringData)
             } else {
                 print("Failed to convert string to data")
@@ -168,9 +135,43 @@ extension BluetoothService: CBPeripheralDelegate {
         }
 
         func updateThrottleCharacteristic(with value: Int) {
-            let data = withUnsafeBytes(of: value) { Data($0) }
-            writeValue(to: throttleCharacteristic, with: data)
+            var mutableValue = value
+            let stringValue = String(mutableValue)
+            if let stringData = stringValue.data(using: .utf8) {
+                writeValue(to: throttleCharacteristic, with:  stringData)
+            } else {
+                print("Failed to convert string to data")
+            }
         }
 
+    func updateYawCharacteristic(with value: Int) {
+            var mutableValue = value
+            let stringValue = String(mutableValue)
+            if let stringData = stringValue.data(using: .utf8) {
+                writeValue(to: yawCharacteristic, with:  stringData)
+            } else {
+                print("Failed to convert string to data")
+            }
+        }
+
+        func updateRollCharacteristic(with value: Int) {
+            var mutableValue = value
+            let stringValue = String(mutableValue)
+            if let stringData = stringValue.data(using: .utf8) {
+                writeValue(to: rollCharacteristic, with:  stringData)
+            } else {
+                print("Failed to convert string to data")
+            }
+        }
+
+        func updateSliderCharacteristic(with value: Int) {
+            var mutableValue = value
+            let stringValue = String(mutableValue)
+            if let stringData = stringValue.data(using: .utf8) {
+                writeValue(to: sliderCharacteristic, with:  stringData)
+            } else {
+                print("Failed to convert string to data")
+            }
+        }
     
 }

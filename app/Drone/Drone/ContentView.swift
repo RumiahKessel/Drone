@@ -29,7 +29,7 @@ struct ContentView: View {
     @GestureState private var rightFingerLocation: CGPoint? = nil
 
     // Slider:
-    @State private var sliderValue: Double = 5.0
+    @State private var sliderValue: Double = 2.0
     
     // Bluetooth
     //@StateObject var service = BluetoothService()
@@ -37,7 +37,7 @@ struct ContentView: View {
     
     // Timer
     @State private var timer: Timer?
-    private let updateInterval: TimeInterval = 0.001
+    private let updateInterval: TimeInterval = 0.1
 
     private var bigCircleRadius: CGFloat = 100 // Adjust the radius of the blue circle
     
@@ -78,15 +78,15 @@ struct ContentView: View {
                 }.onChange(of: innerCircleLocation) {
                     leftFinal = CGPoint(x: (innerCircleLocation.x - 50) * 10, y: (innerCircleLocation.y - 215) * -10)
                     updateText(final: leftFinal, textBinding: $leftFinalText)
-                    bluetoothViewModel.updateThrottleCharacteristic(with: Int(leftFinal.y))
-//                    bluetoothViewModel.updateYawCharacteristic(with: Int(leftFinal.x))
                 }
                 
                 VStack() {
-                    Slider(value: $sliderValue, in: 0...10, step: 0.5)
-//                        .onChange(of: sliderValue) {
-//                            bluetoothViewModel.updateSliderCharacteristic(with: Int(sliderValue))
-//                        }
+                    Slider(value: $sliderValue, in: 0...10, step: 0.5, onEditingChanged: { editing in
+                            if !editing {
+                                bluetoothViewModel.updateSliderCharacteristic(with: Int(sliderValue))
+
+                            }
+                        })
                     Text("\(String(format: "%.1f", sliderValue))")
                 }.frame(width: 200, height: 100)
                     .background(Color.gray)
@@ -122,7 +122,6 @@ struct ContentView: View {
                 }.onChange(of: rightInnerCircleLocation) {
                     rightFinal = CGPoint(x: (rightInnerCircleLocation.x - 50) * 10, y: (rightInnerCircleLocation.y - 215) * -10)
                     updateText(final: rightFinal, textBinding: $rightFinalText)
-//                    bluetoothViewModel.updateRollCharacteristic(with: Int(rightFinal.x))
                     
                 }
             
@@ -144,6 +143,9 @@ struct ContentView: View {
     private func startUpdateTimer() {
         timer = Timer.scheduledTimer(withTimeInterval: updateInterval, repeats: true) { _ in
             bluetoothViewModel.updatePitchCharacteristic(with: Int(rightFinal.y))
+            bluetoothViewModel.updateThrottleCharacteristic(with: Int(leftFinal.y))
+            bluetoothViewModel.updateYawCharacteristic(with: Int(leftFinal.x))
+            bluetoothViewModel.updateRollCharacteristic(with: Int(rightFinal.x))
         }
     }
 
@@ -154,11 +156,11 @@ struct ContentView: View {
     }
 
     private func updateBluetoothData() {
-            // Your Bluetooth data update logic here
-            // e.g., update your characteristics with the latest values
             bluetoothViewModel.updateThrottleCharacteristic(with: Int(leftFinal.y))
             bluetoothViewModel.updatePitchCharacteristic(with: Int(rightFinal.y))
-            // ... (other updates)
+            bluetoothViewModel.updateYawCharacteristic(with: Int(leftFinal.x))
+            bluetoothViewModel.updateRollCharacteristic(with: Int(rightFinal.x))
+            bluetoothViewModel.updateSliderCharacteristic(with: Int(sliderValue))
         }
     
      func updateText(final: CGPoint, textBinding: Binding<String>) {
