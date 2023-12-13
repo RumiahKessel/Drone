@@ -28,11 +28,6 @@
 #include "CalLib.h"
 #include <EEPROM.h>
 
-#include <BLEDevice.h>
-#include <BLEUtils.h>
-#include <BLEServer.h>
-#define SERVICE_UUID        "4fafc201-1fb5-459e-8fcc-c5c9c331914b"
-
 RTIMU *imu;                                           // the IMU object
 RTIMUSettings settings;                               // the settings object
 CALLIB_DATA calData;                                  // the calibration data
@@ -55,14 +50,6 @@ void setup()
   Serial.println("ArduinoMagCal starting");
   Serial.println("Enter s to save current data to EEPROM");
   Wire.begin();
-
-  BLEDevice::init("Drone");
-  BLEServer *pServer = BLEDevice::createServer();
-  BLEService *pService = pServer->createService(SERVICE_UUID);
-  pService->start();
-
-  BLEAdvertising *pAdvertising = pServer->getAdvertising();
-  pAdvertising->start();
    
   imu = RTIMU::createIMU(&settings);                 // create the imu object
   imu->IMUInit();
