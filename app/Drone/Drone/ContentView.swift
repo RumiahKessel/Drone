@@ -76,7 +76,7 @@ struct ContentView: View {
                        .cornerRadius(10)
                        .position(x: -50, y: 50)
                 }.onChange(of: innerCircleLocation) {
-                    leftFinal = CGPoint(x: (innerCircleLocation.x - 50) * 10, y: (innerCircleLocation.y - 215) * -10)
+                    leftFinal = CGPoint(x: (innerCircleLocation.x - 50) * 10, y: (innerCircleLocation.y - UIScreen.main.bounds.height / 2) * -10)
                     updateText(final: leftFinal, textBinding: $leftFinalText)
                 }
                 
@@ -120,7 +120,7 @@ struct ContentView: View {
                         .cornerRadius(10)
                         .position(x: -85, y: 50)
                 }.onChange(of: rightInnerCircleLocation) {
-                    rightFinal = CGPoint(x: (rightInnerCircleLocation.x - 50) * 10, y: (rightInnerCircleLocation.y - 215) * -10)
+                    rightFinal = CGPoint(x: (rightInnerCircleLocation.x - 50) * 10, y: (rightInnerCircleLocation.y - UIScreen.main.bounds.height / 2) * -10)
                     updateText(final: rightFinal, textBinding: $rightFinalText)
                     
                 }
