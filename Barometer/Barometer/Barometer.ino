@@ -45,24 +45,27 @@ RTIMUSettings settings;                               // the settings object
 
 #define  SERIAL_PORT_SPEED  115200
 
+#define VIRTUAL_TEMP 305.0f //in [K]
+
 unsigned long lastDisplay;
 unsigned long lastRate;
 int sampleCount;
 
 
-#define NUM_PRESSURE_READINGS 10
+#define NUM_PRESSURE_READINGS 20
 
 #define MBAR_ATT_SETTING 1013.25
 
 float initial_pressure;
 float initial_temp;
 
-float report_pressure[NUM_PRESSURE_READINGS] = {0}; 
+float report_pressure[NUM_PRESSURE_READINGS];
 int pressure_index;
 float sum_pressure;
 float current_pressure;
 float current_meters;
 float base_alt;
+float filteredAltitude;
 
 
 
@@ -115,25 +118,49 @@ void calibrate() {
   float latestPressure;
   float latestTemperature;
   int b = 0;
+  int f = 0;
 
-  while (b < NUM_PRESSURE_READINGS) {
+
+  while (f < 3) { //to flush out bad sensor readings
     if (pressure->pressureRead(latestPressure, latestTemperature)) {
-      // Serial.print("pressure here "); Serial.println
-      report_pressure[b] = latestPressure;
-      sum_pressure += report_pressure[b];
-      b += 1;
-      Serial.print("index"); Serial.println(b);
-      Serial.print("pressure"); Serial.println(latestPressure);
+      f += 1;
     }
   }
 
-  base_alt = pressureToAltitudeMeters(sum_pressure/NUM_PRESSURE_READINGS);
+  while (b < NUM_PRESSURE_READINGS) {
+    if (pressure->pressureRead(latestPressure, latestTemperature)) {
+      report_pressure[b] = latestPressure;
+      sum_pressure += report_pressure[b];
+      b += 1;
+      // Serial.print("index"); Serial.println(b);
+      // Serial.print("pressure"); Serial.println(latestPressure);
+      
+    }
+  }
+
+  // base_alt = HypsometricEquation((sum_pressure/NUM_PRESSURE_READINGS) /1000);
+  base_alt = pressureToAltitudeMeters(sum_pressure / NUM_PRESSURE_READINGS);
   Serial.print("base_alt "); Serial.println(base_alt);
+
+  filteredAltitude = 0;
 
 }
 
 float pressureToAltitudeMeters(float pressure_mbar) {
   return (1 - pow(pressure_mbar / MBAR_ATT_SETTING, 0.190263)) * 44330.8;
+}
+
+/**
+ * Use the Hypsometric equation to compute a change in altitude [m] from
+ * a change in pressure [Pa].
+ * 
+ * @param currentPres  Current pressure reading [Pa]
+ */
+float HypsometricEquation(float currentPres) {
+    float R = 287.0f;  // Gas const. [J / kg.K]
+    float g = 9.81f;  // Grav. accel. [m/s/s]
+    // Serial.println(sum_pressure/NUM_PRESSURE_READINGS/1000);
+    return ((R * VIRTUAL_TEMP) / g) * log(sum_pressure/NUM_PRESSURE_READINGS/1000 / currentPres);  // [m]
 }
 
 void loop()
@@ -143,51 +170,64 @@ void loop()
   float latestPressure, latestTemperature;
   int loopCount = 1;
 
-  while (imu->IMURead()) {                                // get the latest data if ready yet
-      // this flushes remaining data in case we are falling behind
-      if (++loopCount >= 10)
-          continue;
-      fusion.newIMUData(imu->getGyro(), imu->getAccel(), imu->getCompass(), imu->getTimestamp());
-      sampleCount++;
-//        if ((delta = now - lastRate) >= 1000) {
-////            Serial.print("Sample rate: "); Serial.print(sampleCount);
-//            if (imu->IMUGyroBiasValid())
-//                Serial.println(", gyro bias valid");
-//            else
-//                Serial.println(", calculating gyro bias");
-//        
-//            sampleCount = 0;
-//            lastRate = now;
-//        }
 
-      
+//   while (imu->IMURead()) {                                // get the latest data if ready yet
+//       // this flushes remaining data in case we are falling behind
+//       if (++loopCount >= 10)
+//           continue;
+//       fusion.newIMUData(imu->getGyro(), imu->getAccel(), imu->getCompass(), imu->getTimestamp());
+//       sampleCount++;
+// //        if ((delta = now - lastRate) >= 1000) {
+// ////            Serial.print("Sample rate: "); Serial.print(sampleCount);
+// //            if (imu->IMUGyroBiasValid())
+// //                Serial.println(", gyro bias valid");
+// //            else
+// //                Serial.println(", calculating gyro bias");
+// //        
+// //            sampleCount = 0;
+// //            lastRate = now;
+// //        }
 
-      if ((now - lastDisplay) >= DISPLAY_INTERVAL) {
-          lastDisplay = now;
-//          RTMath::display("Gyro:", (RTVector3&)imu->getGyro());                // gyro data
-//          RTMath::display("Accel:", (RTVector3&)imu->getAccel());              // accel data
-//          RTMath::display("Mag:", (RTVector3&)imu->getCompass());              // compass data
-          RTMath::displayRollPitchYaw("Pose:", (RTVector3&)fusion.getFusionPose()); // fused output
-          Serial.println();
+//       if ((now - lastDisplay) >= DISPLAY_INTERVAL) {
+//           lastDisplay = now;
+// //          RTMath::display("Gyro:", (RTVector3&)imu->getGyro());                // gyro data
+// //          RTMath::display("Accel:", (RTVector3&)imu->getAccel());              // accel data
+// //          RTMath::display("Mag:", (RTVector3&)imu->getCompass());              // compass data
+//           RTMath::displayRollPitchYaw("Pose:", (RTVector3&)fusion.getFusionPose()); // fused output
+//           Serial.println();
 
 
+//       }
+
+
+//     }
+    int b = 0;
+    float alpha = 0.1;
+    while (b < 5) {
+      if (pressure->pressureRead(latestPressure, latestTemperature)) {
+        sum_pressure -= report_pressure[pressure_index];
+        Serial.print(" pressure read"); Serial.println(latestPressure);
+        report_pressure[pressure_index] = latestPressure;
+        sum_pressure += report_pressure[pressure_index];
+
+        pressure_index = ((int) pressure_index + 1) % (NUM_PRESSURE_READINGS);
+        b += 1;
       }
-
-
     }
+    current_pressure = sum_pressure / NUM_PRESSURE_READINGS;
+    Serial.print(" current_pressure"); Serial.println(current_pressure);
+    current_meters = pressureToAltitudeMeters(current_pressure)-base_alt;
+    // current_meters = HypsometricEquation(current_pressure / 1000);
+    // filteredAltitude = alpha * current_meters + (1 - alpha) * filteredAltitude; //filtering
+    // Serial.print("base alt"); Serial.println(base_alt);
+    // Serial.print("current_meters "); Serial.println(filteredAltitude);
+    // delay(200);
+    // Serial.print("current pressure"); Serial.println(latestPressure);
+    // Serial.print("current_temp "); Serial.println(latestTemperature);
 
-    if (pressure->pressureRead(latestPressure, latestTemperature)) {
-      sum_pressure -= report_pressure[pressure_index];
-      report_pressure[pressure_index] = latestPressure;
-      sum_pressure += report_pressure[pressure_index];
-
-      pressure_index = ((int) pressure_index + 1) % (NUM_PRESSURE_READINGS);
-
-      current_pressure = sum_pressure / NUM_PRESSURE_READINGS;
-      current_meters = pressureToAltitudeMeters(current_pressure)-base_alt;
-    }
-    Serial.print("base alt"); Serial.println(base_alt);
+    // current_meters = sum_pressure / NUM_PRESSURE_READINGS - base_alt;
     Serial.print("current_meters "); Serial.println(current_meters);
+
   
   }
 
