@@ -44,7 +44,7 @@ extension BluetoothService: CBCentralManagerDelegate {
     }
     
     func centralManager(_ central: CBCentralManager, didDiscover peripheral: CBPeripheral, advertisementData: [String: Any], rssi RSSI: NSNumber) {
-        if peripheral.name == "Drone" {
+        if peripheral.name == "Ultra Drone" {
             print("Discovered \(peripheral.name!)")
             if !peripherals.contains(peripheral) {
                 sensorPeripheral = peripheral
@@ -115,7 +115,7 @@ extension BluetoothService: CBPeripheralDelegate {
    }
     
     func peripheral(_ peripheral: CBPeripheral, didWriteValueFor characteristic: CBCharacteristic, error: Error?) {
-        if let error = error {
+        if (error != nil) {
             print("Errored")
             return
         }
