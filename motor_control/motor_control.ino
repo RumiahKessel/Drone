@@ -29,12 +29,21 @@
 #define MIN_SPEED 1050 // speed just slow enough to turn motor off
 #define MAX_SPEED 2000 // speed where my motor drew 3.6 amps at 12v.
 
+#define DISPLAY_INTERVAL  20   
+
 enum motors{
-  FL = 16,
-  FR = 17,
-  RL = 18,
-  RR = 19
+  FL = 33,
+  FR = 25,
+  RL = 26,
+  RR = 27
 };
+
+unsigned long lastDisplay;
+unsigned long lastRate;
+
+float roll_trim = 0;
+float pitch_trim = 4;
+float yaw_trim = 0;
 
 // ESC_Name (PIN, Minimum Value, Maximum Value, Arm Value)
 ESC fl_esc (FL, 1000, 2000, 500);
@@ -48,6 +57,7 @@ int pitch;
 int roll;
 int yaw;
 int max_speed;
+bool yaw_zeroed;
 
 // Attitude estimation
 RTIMU *imu;
@@ -80,7 +90,7 @@ class PITCHCallbacks: public BLECharacteristicCallbacks {
       std::string value = pCharacteristic->getValue();
       if (value.length() > 0) {
         pitch = parse_ble(value);
-        Serial.printf("Setting pitch = %d\n", pitch);
+//        Serial.printf("Setting pitch = %d\n", pitch);
       }
     }
 };
@@ -90,7 +100,7 @@ class ROLLCallbacks: public BLECharacteristicCallbacks {
       std::string value = pCharacteristic->getValue();
       if (value.length() > 0) {
         roll = parse_ble(value);
-        Serial.printf("Setting roll = %d\n", roll);
+//        Serial.printf("Setting roll = %d\n", roll);
       }
     }
 };
@@ -100,7 +110,7 @@ class YAWCallbacks: public BLECharacteristicCallbacks {
       std::string value = pCharacteristic->getValue();
       if (value.length() > 0) {
         yaw = parse_ble(value);
-        Serial.printf("Setting yaw = %d\n", yaw);
+//        Serial.printf("Setting yaw = %d\n", yaw);
       }
     }
 };
@@ -110,7 +120,7 @@ class THROTTLECallbacks: public BLECharacteristicCallbacks {
       std::string value = pCharacteristic->getValue();
       if (value.length() > 0) {
         throttle = parse_ble(value);
-        Serial.printf("Setting throttle = %d\n", throttle);
+//        Serial.printf("Setting throttle = %d\n", throttle);
       }
     }
 };
@@ -120,7 +130,7 @@ class SPEEDCallbacks: public BLECharacteristicCallbacks {
       std::string value = pCharacteristic->getValue();
       if (value.length() > 0) {
         max_speed = parse_ble(value)*3;
-        Serial.printf("Setting max speed = %d\n", max_speed);
+//        Serial.printf("Setting max speed = %d\n", max_speed);
       }
     }
 };
@@ -130,12 +140,12 @@ void set_motor(int fl_spd, int fr_spd, int rl_spd, int rr_spd);
 void angle_stabilization(double curr_x, double curr_y, double curr_z, double desired_x, double desired_y, double desired_z, int desired_speed);
 
 void initialize_pid(){
-  roll_pid.Kp = 0.5;
+  roll_pid.Kp = 4;
   roll_pid.Ki = 0;
   roll_pid.Kd = 0;
   roll_pid.tau = 0.001;
-  roll_pid.limMin = -20;
-  roll_pid.limMax = 20;
+  roll_pid.limMin = -150;
+  roll_pid.limMax = 150;
   roll_pid.limMaxInt = -10;
   roll_pid.limMaxInt = 10;
 
@@ -222,10 +232,12 @@ void initialize_rtimu(){
       Serial.println("No valid compass calibration data");
     while(1);
   }
+
+  yaw_zeroed = false;
   // Slerp power controls the fusion and can be between 0 and 1
   // 0 means that only gyros are used, 1 means that only accels/compass are used
   // In-between gives the fusion mix.
-  fusion.setSlerpPower(0.04);
+  fusion.setSlerpPower(0.025);
   
   // use of sensors in the fusion algorithm can be controlled here
   // change any of these to false to disable that sensor
@@ -244,35 +256,40 @@ void setup() {
   initialize_pid();
   initialize_motors();
   initialize_rtimu();
+  
   pitch, roll, yaw, throttle, max_speed = 0;
-  delay(1000); // let yaw settle
-  while (!imu->IMURead()); //wait for imu data
-  fusion.newIMUData(imu->getGyro(), imu->getAccel(), imu->getCompass(), imu->getTimestamp());
-  RTVector3& vec = (RTVector3&)fusion.getFusionPose();
-  yaw = vec.z() * RTMATH_RAD_TO_DEGREE;
+//  delay(1000); // let yaw settle
+  lastDisplay = lastRate = millis();
 
   Serial.printf("Initialization successful\n");
 } // speed will now jump to pot setting
 
 void loop() {
+  unsigned long now = millis();
   float bat = analogReadMilliVolts(BATTERY_SENS) * .0047;
   int loopCount = 1;
   while (imu->IMURead()) {                                // get the latest data if ready yet
     // this flushes remaining data in case we are falling behind
     if (++loopCount >= 10)
         continue;
+    
     fusion.newIMUData(imu->getGyro(), imu->getAccel(), imu->getCompass(), imu->getTimestamp());
-    RTVector3& vec = (RTVector3&)fusion.getFusionPose();
-    float cur_roll = vec.x() * RTMATH_RAD_TO_DEGREE;
-    float cur_pitch = vec.y() * RTMATH_RAD_TO_DEGREE;
-    float cur_yaw = vec.z() * RTMATH_RAD_TO_DEGREE;
-    Serial.print("roll:"); Serial.print(cur_roll);
-    Serial.print(" pitch:"); Serial.print(cur_pitch);
-    Serial.print(" yaw:"); Serial.print(cur_yaw);
-    Serial.print(" desired_roll:"); Serial.print(roll);
-    Serial.print(" desired_pitch:"); Serial.print(pitch);
-    Serial.print(" desired_yaw:"); Serial.print(yaw);
-    angle_stabilization(cur_roll, cur_yaw, cur_pitch, roll, pitch, yaw, throttle);
+    if (now - lastRate >= 2) {
+      lastRate = now;
+      RTVector3& vec = (RTVector3&)fusion.getFusionPose();
+      float cur_roll = vec.x() * RTMATH_RAD_TO_DEGREE;
+      float cur_pitch = vec.y() * RTMATH_RAD_TO_DEGREE;
+      float cur_yaw = vec.z() * RTMATH_RAD_TO_DEGREE;
+      if(!yaw_zeroed){
+        yaw = cur_yaw;
+        yaw_zeroed = true;
+      }
+//      if ((now - lastDisplay) >= DISPLAY_INTERVAL) {
+        Serial.printf("roll:%.2f pitch:%.2f yaw:%.2f desired_roll:%d desired_pitch:%d desired_yaw:%d", cur_roll, cur_pitch, cur_yaw, roll, pitch, yaw);
+//      }
+     
+      angle_stabilization(cur_roll, cur_yaw, cur_pitch, roll, yaw, pitch, throttle);
+    }
   }
 }
 
@@ -290,11 +307,11 @@ void angle_stabilization(double curr_roll, double curr_yaw, double curr_pitch, d
   */
   if (desired_speed == 0){
     set_motors(0, 0, 0, 0);
-    Serial.printf(" FL:%d FR:%d RL:%d RR:%d\n", 0, 0, 0, 0);
+    Serial.printf(" Pitch_pid:%0.2f Roll_pid:%0.2f Yaw_pid:%0.2f\n", 0, 0, 0);
     return;
   }
 
-//  float yaw_out = PIDController_Update(&yaw_pid, 0, desired_yaw + curr_yaw);
+//  float yaw_out = PIDController_Update(&yaw_pid, desired_yaw, curr_yaw);
   float yaw_out = 0;
   float roll_out = PIDController_Update(&roll_pid, desired_roll, curr_roll);
   float pitch_out = PIDController_Update(&pitch_pid, desired_pitch, curr_pitch);
@@ -304,7 +321,7 @@ void angle_stabilization(double curr_roll, double curr_yaw, double curr_pitch, d
   int rl_spd = desired_speed - pitch_out + roll_out + yaw_out;
   int rr_spd = desired_speed - pitch_out - roll_out - yaw_out;
 
-  Serial.printf(" FL:%d FR:%d RL:%d RR:%d\n", fl_spd, fr_spd, rl_spd, rr_spd);
+  Serial.printf(" Pitch_pid:%0.2f Roll_pid:%0.2f Yaw_pid:%0.2f\n", pitch_out, roll_out, yaw_out);
   
   set_motors(fl_spd, fr_spd, rl_spd, rr_spd);
 }

@@ -23,6 +23,10 @@ float PIDController_Update(PIDController *pid, float setpoint, float measurement
 	 * Error signal
 	 */
 	float error = setpoint - measurement;
+	if(error < -180)
+		error += 360;
+	else if(error > 180)
+		error -= 360;
 
 	/*
 	 * Proportional
