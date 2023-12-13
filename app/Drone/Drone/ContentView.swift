@@ -37,7 +37,7 @@ struct ContentView: View {
     
     // Timer
     @State private var timer: Timer?
-    private let updateInterval: TimeInterval = 1.0
+    private let updateInterval: TimeInterval = 0.6
 
     private var bigCircleRadius: CGFloat = 100 // Adjust the radius of the blue circle
     
