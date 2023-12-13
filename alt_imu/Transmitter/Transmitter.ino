@@ -4,11 +4,11 @@
 #include <SPI.h> 
  
 // Create Amplitude Shift Keying Object
-//receiver: 4 transmitter: 5
-RH_ASK rf_driver(2000, 5, 4, 0); // ESP8266 or ESP32: do not use pin 11 or 2
+//receiver: 4 transmitter: 33
+RH_ASK rf_driver(2000, 13, 12, 0); // ESP8266 or ESP32: do not use pin 11 or 2
  
 void setup() {   
-  Serial.begin(9600);
+  Serial.begin(115200);
   // Initialize ASK Object
   if (!rf_driver.init()) {
     Serial.println("Failed to initialize driver");

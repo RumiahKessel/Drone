@@ -20,19 +20,24 @@ struct ContentView: View {
     @State private var rightFinalText: String = ""
     
     // Joystick Controls:
-    @State private var location: CGPoint = CGPoint(x: 180, y: UIScreen.main.bounds.height / 2)
-    @State private var innerCircleLocation: CGPoint = CGPoint(x: 180, y: UIScreen.main.bounds.height / 2)
+    @State private var location: CGPoint = CGPoint(x: 50, y: UIScreen.main.bounds.height / 2)
+    @State private var innerCircleLocation: CGPoint = CGPoint(x: 50, y: UIScreen.main.bounds.height / 2)
     @GestureState private var fingerLocation: CGPoint? = nil
 
-    @State private var rightLocation: CGPoint = CGPoint(x: 180, y: UIScreen.main.bounds.height / 2)
-    @State private var rightInnerCircleLocation: CGPoint = CGPoint(x: 180, y: UIScreen.main.bounds.height / 2)
+    @State private var rightLocation: CGPoint = CGPoint(x: 50, y: UIScreen.main.bounds.height / 2)
+    @State private var rightInnerCircleLocation: CGPoint = CGPoint(x: 50, y: UIScreen.main.bounds.height / 2)
     @GestureState private var rightFingerLocation: CGPoint? = nil
 
     // Slider:
-    @State private var sliderValue: Double = 5.0
+    @State private var sliderValue: Double = 2.0
     
     // Bluetooth
-    @StateObject var service = BluetoothService()
+    //@StateObject var service = BluetoothService()
+    @ObservedObject private var bluetoothViewModel = BluetoothService()
+    
+    // Timer
+    @State private var timer: Timer?
+    private let updateInterval: TimeInterval = 0.1
 
     private var bigCircleRadius: CGFloat = 100 // Adjust the radius of the blue circle
     
@@ -42,9 +47,11 @@ struct ContentView: View {
             MapView(initialCoordinate: CLLocationCoordinate2D(latitude: 37.875, longitude: -122.2578), zoomLevel: 0.001)
                 .edgesIgnoringSafeArea(.all)
 
-            HStack(spacing: 20) {
-                Text(service.peripheralStatus.rawValue).font(.headline)
-                
+            HStack() {
+                Text(bluetoothViewModel.peripheralConnection)
+                    .background(.white)
+                    .font(.headline)
+                    .position(x: 30, y: 400)
 
                 HStack() {  
                     ZStack() {
@@ -67,20 +74,26 @@ struct ContentView: View {
                        .frame(minWidth: 200)
                        .background(Color.blue)
                        .cornerRadius(10)
-                       .position(x: -5, y: 50)
+                       .position(x: -50, y: 50)
                 }.onChange(of: innerCircleLocation) {
-                    leftFinal = CGPoint(x: (innerCircleLocation.x - 180) * 10, y: (innerCircleLocation.y - 215) * -10)
+                    leftFinal = CGPoint(x: (innerCircleLocation.x - 50) * 10, y: (innerCircleLocation.y - 215) * -10)
                     updateText(final: leftFinal, textBinding: $leftFinalText)
                 }
                 
                 VStack() {
-                    Slider(value: $sliderValue, in: 0...10, step: 0.5)
+                    Slider(value: $sliderValue, in: 0...10, step: 0.5, onEditingChanged: { editing in
+                            if !editing {
+                                bluetoothViewModel.updateSliderCharacteristic(with: Int(sliderValue))
+
+                            }
+                        })
                     Text("\(String(format: "%.1f", sliderValue))")
                 }.frame(width: 200, height: 100)
                     .background(Color.gray)
                     .cornerRadius(10)
                     .foregroundColor(.white)
                     .padding()
+                    .position(x: 25, y: 120)
                 
                 
                 HStack() {
@@ -105,18 +118,50 @@ struct ContentView: View {
                         .frame(minWidth: 200)
                         .background(Color.blue)
                         .cornerRadius(10)
-                        .position(x: 5, y: 50)
+                        .position(x: -85, y: 50)
                 }.onChange(of: rightInnerCircleLocation) {
-                    rightFinal = CGPoint(x: (rightInnerCircleLocation.x - 180) * 10, y: (rightInnerCircleLocation.y - 215) * -10)
+                    rightFinal = CGPoint(x: (rightInnerCircleLocation.x - 50) * 10, y: (rightInnerCircleLocation.y - 215) * -10)
                     updateText(final: rightFinal, textBinding: $rightFinalText)
+                    
                 }
             
                
               }
             }
+            .onAppear {
+            // Start the timer when the view appears
+                startUpdateTimer()
+            }
+            .onDisappear {
+                // Stop the timer when the view disappears
+                stopUpdateTimer()
+            }
         
         }
 
+        // Function to start the update timer
+    private func startUpdateTimer() {
+        timer = Timer.scheduledTimer(withTimeInterval: updateInterval, repeats: true) { _ in
+            bluetoothViewModel.updatePitchCharacteristic(with: Int(rightFinal.y))
+            bluetoothViewModel.updateThrottleCharacteristic(with: Int(leftFinal.y))
+            bluetoothViewModel.updateYawCharacteristic(with: Int(leftFinal.x))
+            bluetoothViewModel.updateRollCharacteristic(with: Int(rightFinal.x))
+        }
+    }
+
+    // Function to stop the update timer
+    private func stopUpdateTimer() {
+        timer?.invalidate()
+        timer = nil
+    }
+
+    private func updateBluetoothData() {
+            bluetoothViewModel.updateThrottleCharacteristic(with: Int(leftFinal.y))
+            bluetoothViewModel.updatePitchCharacteristic(with: Int(rightFinal.y))
+            bluetoothViewModel.updateYawCharacteristic(with: Int(leftFinal.x))
+            bluetoothViewModel.updateRollCharacteristic(with: Int(rightFinal.x))
+            bluetoothViewModel.updateSliderCharacteristic(with: Int(sliderValue))
+        }
     
      func updateText(final: CGPoint, textBinding: Binding<String>) {
            let formattedX = String(format: "%.0f", final.x)
