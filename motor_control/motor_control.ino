@@ -30,6 +30,7 @@
 #define MAX_SPEED 2000 // speed where my motor drew 3.6 amps at 12v.
 
 #define DISPLAY_INTERVAL  20   
+#define YAW_INTERVAL 20
 
 enum motors{
   FL = 33,
@@ -42,7 +43,7 @@ unsigned long lastDisplay;
 unsigned long lastRate;
 
 float roll_trim = 0;
-float pitch_trim = 4;
+float pitch_trim = 0;
 float yaw_trim = 0;
 
 // ESC_Name (PIN, Minimum Value, Maximum Value, Arm Value)
@@ -56,6 +57,7 @@ int throttle;
 int pitch;
 int roll;
 int yaw;
+int yaw_change;
 int max_speed;
 bool yaw_zeroed;
 
@@ -89,7 +91,7 @@ class PITCHCallbacks: public BLECharacteristicCallbacks {
     void onWrite(BLECharacteristic *pCharacteristic) {
       std::string value = pCharacteristic->getValue();
       if (value.length() > 0) {
-        pitch = parse_ble(value);
+        pitch = parse_ble(value)/100;
 //        Serial.printf("Setting pitch = %d\n", pitch);
       }
     }
@@ -99,7 +101,7 @@ class ROLLCallbacks: public BLECharacteristicCallbacks {
     void onWrite(BLECharacteristic *pCharacteristic) {
       std::string value = pCharacteristic->getValue();
       if (value.length() > 0) {
-        roll = parse_ble(value);
+        roll = parse_ble(value)/100;
 //        Serial.printf("Setting roll = %d\n", roll);
       }
     }
@@ -109,7 +111,7 @@ class YAWCallbacks: public BLECharacteristicCallbacks {
     void onWrite(BLECharacteristic *pCharacteristic) {
       std::string value = pCharacteristic->getValue();
       if (value.length() > 0) {
-        yaw = parse_ble(value);
+        yaw_change = parse_ble(value)/100;
 //        Serial.printf("Setting yaw = %d\n", yaw);
       }
     }
@@ -119,7 +121,7 @@ class THROTTLECallbacks: public BLECharacteristicCallbacks {
     void onWrite(BLECharacteristic *pCharacteristic) {
       std::string value = pCharacteristic->getValue();
       if (value.length() > 0) {
-        throttle = parse_ble(value);
+        throttle = parse_ble(value)/10;
 //        Serial.printf("Setting throttle = %d\n", throttle);
       }
     }
@@ -129,7 +131,7 @@ class SPEEDCallbacks: public BLECharacteristicCallbacks {
     void onWrite(BLECharacteristic *pCharacteristic) {
       std::string value = pCharacteristic->getValue();
       if (value.length() > 0) {
-        max_speed = parse_ble(value)*3;
+        max_speed = parse_ble(value);
 //        Serial.printf("Setting max speed = %d\n", max_speed);
       }
     }
@@ -139,24 +141,35 @@ bool initialize_motors();
 void set_motor(int fl_spd, int fr_spd, int rl_spd, int rr_spd);
 void angle_stabilization(double curr_x, double curr_y, double curr_z, double desired_x, double desired_y, double desired_z, int desired_speed);
 
+float roll_v_p = 0.2;
+float pitch_v_p = 0.2;
+float yaw_v_p = 2;
+
 void initialize_pid(){
-  roll_pid.Kp = 4;
+  roll_pid.Kp = 0.28;
   roll_pid.Ki = 0;
   roll_pid.Kd = 0;
-  roll_pid.tau = 0.001;
+  roll_pid.tau = 1;
   roll_pid.limMin = -150;
   roll_pid.limMax = 150;
   roll_pid.limMaxInt = -10;
   roll_pid.limMaxInt = 10;
+  
+  pitch_pid.Kp = 0.28;
+  pitch_pid.Ki = 0;
+  pitch_pid.Kd = 0;
+  pitch_pid.tau = 1;
+  pitch_pid.limMin = -150;
+  pitch_pid.limMax = 150;
+  pitch_pid.limMaxInt = -10;
+  pitch_pid.limMaxInt = 10;
 
-  pitch_pid = roll_pid;
-
-  yaw_pid.Kp = 0.02;
+  yaw_pid.Kp = 4;
   yaw_pid.Ki = 0;
   yaw_pid.Kd = 0;
   yaw_pid.tau = 0.001;
-  yaw_pid.limMin = -20;
-  yaw_pid.limMax = 20;
+  yaw_pid.limMin = -200;
+  yaw_pid.limMax = 200;
   yaw_pid.limMaxInt = -10;
   yaw_pid.limMaxInt = 10;
 
@@ -260,6 +273,25 @@ void setup() {
   pitch, roll, yaw, throttle, max_speed = 0;
 //  delay(1000); // let yaw settle
   lastDisplay = lastRate = millis();
+  int sum = 0;
+  for (int i = 0; i < 100; i++){
+    while (imu->IMURead()) {                                // get the latest data if ready yet
+      sum++;
+      fusion.newIMUData(imu->getGyro(), imu->getAccel(), imu->getCompass(), imu->getTimestamp());
+      RTVector3& vec = (RTVector3&)fusion.getFusionPose();
+      float cur_roll = vec.x() * RTMATH_RAD_TO_DEGREE;
+      float cur_pitch = vec.y() * RTMATH_RAD_TO_DEGREE;
+      float cur_yaw = vec.z() * RTMATH_RAD_TO_DEGREE;
+      roll_trim += cur_roll;
+      pitch_trim += cur_pitch;
+      yaw_trim += cur_yaw;
+    }
+    delay(10);
+  }
+
+  roll_trim /= sum;
+  pitch_trim /= sum;
+  yaw_trim /= sum;
 
   Serial.printf("Initialization successful\n");
 } // speed will now jump to pot setting
@@ -272,29 +304,39 @@ void loop() {
     // this flushes remaining data in case we are falling behind
     if (++loopCount >= 10)
         continue;
-    
+
+    RTVector3& gyro = (RTVector3&)imu->getGyro();
+    float cur_roll_rate = gyro.x() * RTMATH_RAD_TO_DEGREE;
+    float cur_pitch_rate = gyro.y() * RTMATH_RAD_TO_DEGREE;
+    float cur_yaw_rate = gyro.z() * RTMATH_RAD_TO_DEGREE;
+
+    Serial.printf("roll_rate:%.2f pitch_rate:%.2f", cur_roll_rate, cur_pitch_rate);
+
     fusion.newIMUData(imu->getGyro(), imu->getAccel(), imu->getCompass(), imu->getTimestamp());
-    if (now - lastRate >= 2) {
+    if (now - lastRate >= YAW_INTERVAL) {
       lastRate = now;
-      RTVector3& vec = (RTVector3&)fusion.getFusionPose();
-      float cur_roll = vec.x() * RTMATH_RAD_TO_DEGREE;
-      float cur_pitch = vec.y() * RTMATH_RAD_TO_DEGREE;
-      float cur_yaw = vec.z() * RTMATH_RAD_TO_DEGREE;
-      if(!yaw_zeroed){
-        yaw = cur_yaw;
-        yaw_zeroed = true;
-      }
-//      if ((now - lastDisplay) >= DISPLAY_INTERVAL) {
-        Serial.printf("roll:%.2f pitch:%.2f yaw:%.2f desired_roll:%d desired_pitch:%d desired_yaw:%d", cur_roll, cur_pitch, cur_yaw, roll, pitch, yaw);
-//      }
-     
-      angle_stabilization(cur_roll, cur_yaw, cur_pitch, roll, yaw, pitch, throttle);
+      yaw += yaw_change;
     }
+      RTVector3& vec = (RTVector3&)fusion.getFusionPose();
+      float cur_roll = (vec.x() * RTMATH_RAD_TO_DEGREE) - roll_trim;
+      float cur_pitch = (vec.y() * RTMATH_RAD_TO_DEGREE) - pitch_trim;
+      float cur_yaw = (vec.z() * RTMATH_RAD_TO_DEGREE) - yaw_trim;
+//      if(!yaw_zeroed){
+//        yaw = cur_yaw;
+//        yaw_zeroed = true;
+//      }
+//      Serial.printf("roll_rate:%.2f pitch_rate:%.2f yaw_rate:%.2f", cur_roll_rate, cur_pitch_rate, cur_yaw_rate);
+////      if ((now - lastDisplay) >= DISPLAY_INTERVAL) {
+        Serial.printf(" roll:%.2f pitch:%.2f", cur_roll, cur_pitch);
+////      }
+//     
+      angle_stabilization(cur_roll, cur_yaw, cur_pitch, cur_roll_rate, cur_yaw_rate, cur_pitch_rate, roll, yaw, pitch, max_speed, throttle);
+//    }
   }
 }
 
 // x is roll (positive is right), y is yaw (positive is right), z is pitch (positive is up)
-void angle_stabilization(double curr_roll, double curr_yaw, double curr_pitch, double desired_roll, double desired_yaw, double desired_pitch, int desired_speed){
+void angle_stabilization(float curr_roll, float curr_yaw, float curr_pitch, float cur_roll_rate, float cur_yaw_rate, float cur_pitch_rate, float desired_roll, float desired_yaw, float desired_pitch, int desired_speed, int throttle){
   /*
     Logic here is as follows. I have 3 pid controllers one for each angle. 
     The yaw gets to influence the ratio between the diagonals. 
@@ -305,24 +347,29 @@ void angle_stabilization(double curr_roll, double curr_yaw, double curr_pitch, d
     RL = desired_speed - pitch_pid + roll_pid + Yaw_pid
     RR = desired_speed - pitch_pid - roll_pid - Yaw_pid
   */
+
+  float desired_roll_v = roll_v_p*(desired_roll - curr_roll);
+  float desired_pitch_v = pitch_v_p*(desired_pitch - curr_pitch);
+  float desired_yaw_v = yaw_v_p*(desired_yaw- curr_yaw);
+
+  Serial.printf(" Pitch_v_pid:%0.2f Roll_v_pid:%0.2f", desired_pitch_v, desired_roll_v);
+
+//  float yaw_out = PIDController_Update(&yaw_pid, desired_yaw_v, cur_yaw_rate);
+  float yaw_out = 0;
+  float roll_out = PIDController_Update(&roll_pid, desired_roll_v, cur_roll_rate);
+  float pitch_out = PIDController_Update(&pitch_pid, desired_pitch_v, cur_pitch_rate);
+  
+  int fl_spd = desired_speed + throttle + pitch_out + roll_out + yaw_out;
+  int fr_spd = desired_speed + throttle + pitch_out - roll_out - yaw_out;
+  int rl_spd = desired_speed + throttle - pitch_out + roll_out - yaw_out;
+  int rr_spd = desired_speed + throttle - pitch_out - roll_out + yaw_out;
+
+  Serial.printf(" Pitch_pid:%0.2f Roll_pid:%0.2f\n", pitch_out, roll_out);
+
   if (desired_speed == 0){
     set_motors(0, 0, 0, 0);
-    Serial.printf(" Pitch_pid:%0.2f Roll_pid:%0.2f Yaw_pid:%0.2f\n", 0, 0, 0);
     return;
   }
-
-//  float yaw_out = PIDController_Update(&yaw_pid, desired_yaw, curr_yaw);
-  float yaw_out = 0;
-  float roll_out = PIDController_Update(&roll_pid, desired_roll, curr_roll);
-  float pitch_out = PIDController_Update(&pitch_pid, desired_pitch, curr_pitch);
-  
-  int fl_spd = desired_speed + pitch_out + roll_out - yaw_out;
-  int fr_spd = desired_speed + pitch_out - roll_out + yaw_out;
-  int rl_spd = desired_speed - pitch_out + roll_out + yaw_out;
-  int rr_spd = desired_speed - pitch_out - roll_out - yaw_out;
-
-  Serial.printf(" Pitch_pid:%0.2f Roll_pid:%0.2f Yaw_pid:%0.2f\n", pitch_out, roll_out, yaw_out);
-  
   set_motors(fl_spd, fr_spd, rl_spd, rr_spd);
 }
 
